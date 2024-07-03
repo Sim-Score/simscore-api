@@ -293,48 +293,45 @@ class Analyzer:
         if not hasattr(self, 'pairwise_distance'):
             self.calculate_similarities()
 
-        # Ensure cluster_results is always a list of tuples
-        if isinstance(n_clusters_and_labels[0], int):
-            n_clusters_and_labels = [n_clusters_and_labels]
-
         # Use the idea matrix without the centroid
         idea_matrix = self.pairwise_distance[:-1, :-1]
 
-        fig, axes = plt.subplots(1, len(n_clusters_and_labels), figsize=(6*len(n_clusters_and_labels), 6))
-        if len(n_clusters_and_labels) == 1:
-            axes = [axes]
-
+        fig, ax = plt.subplots(figsize=(6, 6))
+        
         kmeans_data_points = {}
 
-        for i, (ax, (n_clusters, labels)) in enumerate(zip(axes, n_clusters_and_labels)):
-            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-            kmeans.fit(idea_matrix)
+        n_clusters, labels = n_clusters_and_labels
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        kmeans.fit(idea_matrix)
 
-            # Use PCA to reduce the dimensionality to 2D for visualization
-            pca = PCA(n_components=2)
-            reduced_data = pca.fit_transform(idea_matrix)
+        # Use PCA to reduce the dimensionality to 2D for visualization
+        pca = PCA(n_components=2)
+        reduced_data = pca.fit_transform(idea_matrix)
 
-            # Calculate the cluster centers in the reduced space
-            reduced_centers = pca.transform(kmeans.cluster_centers_)
+        # Calculate the cluster centers in the reduced space
+        reduced_centers = pca.transform(kmeans.cluster_centers_)
 
-            # Add the data to the kmeans_data_points dict
-            kmeans_data_points[i] = {
-                "data": reduced_data.tolist(), 
-                "centers": reduced_centers.tolist(), 
-            }
+        # Add the data to the kmeans_data_points dict
+        kmeans_data_points = {
+            "data": reduced_data.tolist(), 
+            "centers": reduced_centers.tolist(), 
+            "cluster": labels.tolist()
+        }
 
-            # Plot the reduced data points
-            scatter = ax.scatter(reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap='viridis')
-            
-            # Plot the cluster centers
-            ax.scatter(reduced_centers[:, 0], reduced_centers[:, 1], c='red', marker='x', s=200, linewidths=3)
+        # Plot the reduced data points
+        scatter = ax.scatter(reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap='viridis')
+        
+        # Plot the cluster centers
+        ax.scatter(reduced_centers[:, 0], reduced_centers[:, 1], c='red', marker='x', s=200, linewidths=3)
 
-            ax.set_title(f'{n_clusters} Clusters')
-            
-            # Add labels to each point
-            for i, (x, y) in enumerate(reduced_data):
-                ax.annotate(str(i+1), (x, y), xytext=(5, 5), textcoords='offset points')
+        ax.set_title(f'{n_clusters} Clusters')
+        
+        # Add labels to each point
+        for i, (x, y) in enumerate(reduced_data):
+            ax.annotate(str(i+1), (x, y), xytext=(5, 5), textcoords='offset points')
 
+        plt.tight_layout()
+        plt.savefig('kmeans_clusters.png')
         return kmeans_data_points
 
     def process_get_data(self):
