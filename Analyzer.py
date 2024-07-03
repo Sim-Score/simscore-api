@@ -1,6 +1,7 @@
 from typing import List
 from pathlib import Path
 import numpy as np
+import random
 from numpy.random import RandomState
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -8,10 +9,13 @@ from sklearn import manifold
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 import nltk
 from nltk.corpus import stopwords, wordnet
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+from sklearn.decomposition import PCA
 
 
 class Analyzer:
@@ -185,15 +189,170 @@ class Analyzer:
             # Show the plot
             plt.show()
 
-    # Convenience shortcuts:
+    def find_optimal_clusters(self, max_clusters=10):
+        """
+        Finds the optimal number of clusters using the elbow method and silhouette score.
+        """
+        if not hasattr(self, 'pairwise_distance'):
+            self.calculate_similarities()
+
+        idea_matrix = self.pairwise_distance[:-1, :-1]
+        
+        inertias = []
+        silhouette_scores = []
+        max_clusters = min(max_clusters, len(self.ideas) - 1)
+
+        k_range = range(2, max_clusters + 1)
+
+        for k in k_range:
+            kmeans = KMeans(n_clusters=k, random_state=42)
+            kmeans.fit(idea_matrix)
+            inertias.append(kmeans.inertia_)
+            if k > 2:  # Silhouette score is not defined for k=1
+                silhouette_scores.append(silhouette_score(idea_matrix, kmeans.labels_))
+
+        # Suggest optimal k
+        optimal_k_inertia = self._find_elbow(k_range, inertias)
+        optimal_k_silhouette = silhouette_scores.index(max(silhouette_scores)) + 3  # +3 because we start from k=2 and index from 0
+
+        print(f"Suggested optimal k by Elbow method: {optimal_k_inertia}")
+        print(f"Suggested optimal k by Silhouette score: {optimal_k_silhouette}")
+
+        return optimal_k_inertia, optimal_k_silhouette
+
+    def _find_elbow(self, k_range, inertias):
+        """
+        Finds the elbow point in the inertia plot, 
+        which is a good indication of the optimal number of clusters.
+        """
+        npoints = len(k_range)
+        allCoords = np.vstack((k_range, inertias)).T
+        firstPoint = allCoords[0]
+        lineVec = allCoords[-1] - allCoords[0]
+        lineVecNorm = lineVec / np.sqrt(np.sum(lineVec**2))
+        vecFromFirst = allCoords - firstPoint
+        
+        # Replace np.matlib.repmat with np.tile
+        scalarProduct = np.sum(vecFromFirst * np.tile(lineVecNorm, (npoints, 1)), axis=1)
+        vecFromFirstParallel = np.outer(scalarProduct, lineVecNorm)
+        vecToLine = vecFromFirst - vecFromFirstParallel
+        distToLine = np.sqrt(np.sum(vecToLine ** 2, axis=1))
+        idxOfBestPoint = np.argmax(distToLine)
+        return k_range[idxOfBestPoint]
+
+    def perform_kmeans_analysis(self, n_clusters=None):
+        """
+        Performs k-means clustering on the ideas.
+        If n_clusters is not provided, it finds the optimal number of clusters.
+        """
+        if not hasattr(self, 'pairwise_distance'):
+            self.calculate_similarities()
+
+        # Calculate an idea matrix without the centroid
+        idea_matrix = self.pairwise_distance[:-1, :-1]
+
+        if n_clusters is None:
+            optimal_k_inertia, optimal_k_silhouette = self.find_optimal_clusters()
+            n_clusters = random.choice([optimal_k_inertia, optimal_k_silhouette])  # Don't know which optimum is better, so choose random...
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        cluster_labels = kmeans.fit_predict(idea_matrix)
+
+        return n_clusters, cluster_labels
+
+    def visualize_kmeans_clusters_mds(self, n_clusters_and_labels):
+        """
+        Visualizes the k-means clustering results on the same plot as the distance-to-centroid plot
+        """
+        coords, _ = self.create_scatter_plot_data(1)
+
+        # Ensure cluster_results is always a list of tuples
+        if isinstance(n_clusters_and_labels[0], int):
+            n_clusters_and_labels = [n_clusters_and_labels]
+
+        fig, axes = plt.subplots(1, len(n_clusters_and_labels), figsize=(6*len(n_clusters_and_labels), 6))
+        if len(n_clusters_and_labels) == 1:
+            axes = [axes]
+
+        for ax, (n_clusters, labels) in zip(axes, n_clusters_and_labels):
+            scatter = ax.scatter(coords[:-1, 0], coords[:-1, 1], c=labels, cmap='viridis')
+            ax.set_title(f'{n_clusters} Clusters')
+            
+            # Add labels to each point
+            for i, (x, y) in enumerate(coords[:-1]):
+                ax.annotate(str(i+1), (x, y), xytext=(5, 5), textcoords='offset points')
+
+        plt.tight_layout()
+        plt.show()
+
+
+    def visualize_kmeans_clusters(self, n_clusters_and_labels):
+        """
+        Visualizes the k-means clustering results with points grouped by their cluster assignments.
+        """
+        if not hasattr(self, 'pairwise_distance'):
+            self.calculate_similarities()
+
+        # Ensure cluster_results is always a list of tuples
+        if isinstance(n_clusters_and_labels[0], int):
+            n_clusters_and_labels = [n_clusters_and_labels]
+
+        # Use the idea matrix without the centroid
+        idea_matrix = self.pairwise_distance[:-1, :-1]
+
+        fig, axes = plt.subplots(1, len(n_clusters_and_labels), figsize=(6*len(n_clusters_and_labels), 6))
+        if len(n_clusters_and_labels) == 1:
+            axes = [axes]
+
+        kmeans_data_points = {}
+
+        for i, (ax, (n_clusters, labels)) in enumerate(zip(axes, n_clusters_and_labels)):
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            kmeans.fit(idea_matrix)
+
+            # Use PCA to reduce the dimensionality to 2D for visualization
+            pca = PCA(n_components=2)
+            reduced_data = pca.fit_transform(idea_matrix)
+
+            # Calculate the cluster centers in the reduced space
+            reduced_centers = pca.transform(kmeans.cluster_centers_)
+
+            # Add the data to the kmeans_data_points dict
+            kmeans_data_points[i] = {
+                "data": reduced_data.tolist(), 
+                "centers": reduced_centers.tolist(), 
+            }
+
+            # Plot the reduced data points
+            scatter = ax.scatter(reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap='viridis')
+            
+            # Plot the cluster centers
+            ax.scatter(reduced_centers[:, 0], reduced_centers[:, 1], c='red', marker='x', s=200, linewidths=3)
+
+            ax.set_title(f'{n_clusters} Clusters')
+            
+            # Add labels to each point
+            for i, (x, y) in enumerate(reduced_data):
+                ax.annotate(str(i+1), (x, y), xytext=(5, 5), textcoords='offset points')
+
+        return kmeans_data_points
+
     def process_get_data(self):
         self.preprocess_ideas()
         self.calculate_similarities()
         coords, marker_sizes = self.create_scatter_plot_data(1)
-        return coords, marker_sizes
+        cluster_results = self.perform_kmeans_analysis()
+        kmeans_data = self.visualize_kmeans_clusters(cluster_results)
+    
+        return coords, marker_sizes, kmeans_data
 
     def process_all(self):
         self.preprocess_ideas()
         self.calculate_similarities()
         print(f"{self.vectorizer.__class__.__name__} graph:")
         self.create_scatter_plot(show_plot=False)
+        
+        # Perform and visualize k-means clustering with optimal k
+        cluster_results = self.perform_kmeans_analysis()
+        kmeans_data = self.visualize_kmeans_clusters(cluster_results)
+    

@@ -30,26 +30,28 @@ app.add_middleware(CORSMiddleware,
 @app.post("/process")
 async def process_item(ideas: list[str]):
     (results, plot_data) = centroid_analysis(ideas)
+    print("Analysis results: ", results)
     return JSONResponse(content={"results": results, "plot_data": plot_data})
 
 def centroid_analysis(ideas: list):
     # Initialize CountVectorizer to convert text into numerical vectors
     count_vectorizer = CountVectorizer()
     analyzer = Analyzer(ideas, count_vectorizer)
-    coords, marker_sizes = analyzer.process_get_data()
+    coords, marker_sizes, kmeans_data = analyzer.process_get_data()
 
     results = {
         "ideas": analyzer.ideas, 
         "similarity": analyzer.cos_similarity.tolist(), 
         "distance": analyzer.distance_to_centroid.tolist()
     }
-    data = {
+    plot_data = {
         "scatter_points": coords.tolist(),
         "marker_sizes": marker_sizes.tolist(),
         "ideas": analyzer.ideas,
         "pairwise_similarity": analyzer.pairwise_similarity.tolist(),
+        "kmeans_data": kmeans_data
     }
-    return (results, data)
+    return (results, plot_data)
 
 
 @app.get("/")
