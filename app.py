@@ -41,8 +41,8 @@ def centroid_analysis(ideas: list):
 
     results = {
         "ideas": analyzer.ideas, 
-        "similarity": analyzer.cos_similarity.tolist(), 
-        "distance": analyzer.distance_to_centroid.tolist()
+        "similarity": [x[0] for x in analyzer.cos_similarity.tolist()], 
+        "distance": [x[0] for x in analyzer.distance_to_centroid.tolist()]
     }
     plot_data = {
         "scatter_points": coords.tolist(),
