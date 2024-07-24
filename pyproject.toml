@@ -13,6 +13,7 @@ numpy = "^2.0.0"
 matplotlib = "^3.9.0"
 nltk = "^3.8.1"
 python-dotenv = "^1.0.1"
+pymongo = "^4.8.0"
 
 
 [tool.poetry.group.dev.dependencies]
