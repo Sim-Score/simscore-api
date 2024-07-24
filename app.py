@@ -5,7 +5,20 @@ from fastapi.responses import JSONResponse
 
 from Analyzer import CountVectorizer, Analyzer
 
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+from bson import ObjectId
+
+from dotenv import load_dotenv
+# Load environment variables from .env file
+load_dotenv()
+
 app = FastAPI()
+
+db_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/')
+# Create a new client and connect to the server
+db_client = MongoClient(db_uri, server_api=ServerApi('1'))
+
 
 ACCESS_CONTROL_ALLOW_CREDENTIALS = os.environ.get(
     'ACCESS_CONTROL_ALLOW_CREDENTIALS', 
@@ -27,11 +40,94 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
 
+# Send a ping to confirm a successful connection
+try:
+    db_client.admin.command('ping')
+    print("Pinged your deployment. You successfully connected to MongoDB!")
+except Exception as e:
+    print(e)
+
+
 @app.post("/process")
 async def process_item(ideas: list[str]):
     (results, plot_data) = centroid_analysis(ideas)
     print("Analysis results: ", results)
-    return JSONResponse(content={"results": results, "plot_data": plot_data})
+    db = db_client.get_database("SimScore")
+    collection = db.get_collection("Sessions")
+    document = {
+        "results": results,
+        "plot_data": plot_data
+    }
+    id = str(collection.insert_one(document).inserted_id)
+
+    return JSONResponse(content={"id": id, "results": results, "plot_data": plot_data})
+
+@app.get("/session/{id}")
+async def retrieve_item(id: str):
+    db = db_client.get_database("SimScore")
+    collection = db.get_collection("Sessions")
+    
+    # Convert string id back to ObjectId, that's what MongoDB stores it as
+    object_id = ObjectId(id)
+    document = collection.find_one({"_id": object_id})
+    
+    if document:
+        document['id'] = str(document.pop('_id'))
+        return JSONResponse(content=document)
+    else:
+        return JSONResponse(content={"error": "Document not found"}, status_code=404)
+
+@app.get("/sessions")
+async def retrieve_all_sessions():
+    db = db_client.get_database("SimScore")
+    collection = db.get_collection("Sessions")
+    documents = collection.find({}, {"_id": 1})
+    return [str(doc["_id"]) for doc in documents]    
+
+@app.post("/session/{id}")
+async def submit_ranking(id: str, data: dict):
+    print("Data submitted to submit_ranking: ", data)
+
+    db = db_client.get_database("SimScore")
+    collection = db.get_collection("Sessions")
+    # Convert string id back to ObjectId
+    object_id = ObjectId(id)
+
+    # First, get all reranked ideas, add the new submitted one, calculate a consensus and submit again
+    document = collection.find_one({"_id": object_id}, {"reranked_ideas": 1, "_id": 0})    
+    if document is None:
+        print(f"Document with id {id} not found")
+        return None
+    
+    named_rankings = document.get('reranked_ideas', [])
+    rankings = [named_rankings[name] for name in named_rankings]
+    ideas = data['ideasAndSimScores']['ideas']
+    rankings.append(ideas)
+    
+    consensus_ranking = calculate_consensus(rankings)
+
+    result = collection.update_one({"_id": object_id}, 
+                                   {"$set": {f"reranked_ideas.{data['name']}": ideas,
+                                             "consensus_ranking": consensus_ranking}},                                   )
+    
+    if result.modified_count == 1:
+        return JSONResponse(content={"consensus_ranking": consensus_ranking})
+    else:
+        return JSONResponse(content={"error": "Session not found or not updated"}, status_code=404)
+
+@app.get("/manage/{id}")
+async def retrieve_consensus(id: str):
+    db = db_client.get_database("SimScore")
+    collection = db.get_collection("Sessions")
+    
+    # Convert string id back to ObjectId, that's what MongoDB stores it as
+    object_id = ObjectId(id)
+    document = collection.find_one({"_id": object_id}, {"consensus_ranking": 1, "_id": 0})    
+    if document:
+        return JSONResponse(content=document)
+    else:
+        return JSONResponse(content={"error": "Document not found / no ranking submitted yet"}, status_code=404)
+
 
 def centroid_analysis(ideas: list):
     # Initialize CountVectorizer to convert text into numerical vectors
@@ -53,6 +149,16 @@ def centroid_analysis(ideas: list):
     }
     return (results, plot_data)
 
+
+def calculate_consensus(rankings: list[list[str]]):   
+    # For simplicity, we use the 'borda count' method,
+    # where every idea has a score according to its rank and we simply accumulate the scores.
+    # I personally like this method, it seems more consensus based and avoids extremes.
+    scores = {}
+    for ranking in rankings:
+        for position, idea in enumerate(ranking):
+            scores[idea] = scores.get(idea, 0) + (len(ranking) - position)
+    return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
 
 @app.get("/")
 def index():
