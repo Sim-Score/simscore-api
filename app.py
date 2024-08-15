@@ -1,4 +1,8 @@
+import asyncio
+import json
 import os
+
+from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -8,6 +12,9 @@ from Analyzer import CountVectorizer, Analyzer
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from bson import ObjectId
+from pydantic import BaseModel
+from openai import OpenAI
+
 
 from dotenv import load_dotenv
 # Load environment variables from .env file
@@ -127,6 +134,44 @@ async def retrieve_consensus(id: str):
         return JSONResponse(content=document)
     else:
         return JSONResponse(content={"error": "Document not found / no ranking submitted yet"}, status_code=404)
+
+@app.post("/validate")
+async def validate_idea(request: dict):
+    print(request)
+  
+    api_key = os.environ.get("OPENAI_API_KEY")
+    client = OpenAI()
+    client.api_key = api_key
+
+    thread = client.beta.threads.create()
+    print("Created thread: ", thread.id)
+
+    client.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=request["idea"],
+    )
+
+    run = client.beta.threads.runs.create_and_poll(
+        thread_id=thread.id,
+        assistant_id="asst_Y9q7vWLJJUG24uWwnQNznZia",
+        instructions="Format your response as JSON object with error: {'singlePointFocusError': string, 'sentimentError': string}",        
+        response_format={"type": "json_object"},
+    )
+
+    while run.status in ['queued', 'in_progress']:
+        print("Waiting for OpenAI to finish processing")
+        await asyncio.sleep(0.1)  # Wait for 100ms
+    
+    if run.status == 'completed':
+      result = client.beta.threads.messages.list(
+          thread_id=thread.id
+      )
+      result_json = result.data[0].content[0].text.value
+      print("Result: ", result_json)
+      return JSONResponse(result_json)
+
+    raise Exception("OpenAI finished with: ", run.status)    
 
 
 def centroid_analysis(ideas: list):
