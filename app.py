@@ -2,8 +2,10 @@ import asyncio
 import json
 import os
 
+import random
+import string
 from typing import Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -47,26 +49,23 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
 
-# Send a ping to confirm a successful connection
-try:
-    db_client.admin.command('ping')
-    print("Pinged your deployment. You successfully connected to MongoDB!")
-except Exception as e:
-    print(e)
-
-
 @app.post("/process")
-async def process_item(ideas: list[str]):
+async def process_item(ideas: list[str], store_in_db: bool = Query(default=False)):
+    print("Received a set of ideas, processing...")
     (results, plot_data) = centroid_analysis(ideas)
     print("Analysis results: ", results)
-    db = db_client.get_database("SimScore")
-    collection = db.get_collection("Sessions")
-    document = {
-        "results": results,
-        "plot_data": plot_data
-    }
-    id = str(collection.insert_one(document).inserted_id)
-
+    if store_in_db:
+      print("storing data in the db")
+      db = db_client.get_database("SimScore")
+      collection = db.get_collection("Sessions")
+      document = {
+          "results": results,
+          "plot_data": plot_data
+      }
+      id = str(collection.insert_one(document).inserted_id)
+    else:
+      print("NOT storing data in the db")
+      id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
     return JSONResponse(content={"id": id, "results": results, "plot_data": plot_data})
 
 @app.get("/session/{id}")
