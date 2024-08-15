@@ -15,6 +15,7 @@ nltk = "^3.8.1"
 python-dotenv = "^1.0.1"
 pymongo = "^4.8.0"
 textblob = "^0.18.0.post0"
+openai = "^1.40.6"
 
 
 [tool.poetry.group.dev.dependencies]
