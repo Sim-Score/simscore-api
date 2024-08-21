@@ -49,12 +49,17 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
 
+class RequestData(BaseModel):
+    ideas: list[str]
+    store_results: bool
+
 @app.post("/process")
-async def process_item(ideas: list[str], store_in_db: bool = Query(default=False)):
-    print("Received a set of ideas, processing...")
+async def process_item(request: RequestData):
+    print("Received a set of ideas, processing...", request)
+    ideas = request.ideas
     (results, plot_data) = centroid_analysis(ideas)
     print("Analysis results: ", results)
-    if store_in_db:
+    if request.store_results:
       print("storing data in the db")
       db = db_client.get_database("SimScore")
       collection = db.get_collection("Sessions")
@@ -65,7 +70,7 @@ async def process_item(ideas: list[str], store_in_db: bool = Query(default=False
       id = str(collection.insert_one(document).inserted_id)
     else:
       print("NOT storing data in the db")
-      id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+      id = 'temp_' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
     return JSONResponse(content={"id": id, "results": results, "plot_data": plot_data})
 
 @app.get("/session/{id}")
