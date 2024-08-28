@@ -17,6 +17,25 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from sklearn.decomposition import PCA
 
+def centroid_analysis(ideas: list):
+    # Initialize CountVectorizer to convert text into numerical vectors
+    count_vectorizer = CountVectorizer()
+    analyzer = Analyzer(ideas, count_vectorizer)
+    coords, marker_sizes, kmeans_data = analyzer.process_get_data()
+
+    results = {
+        "ideas": analyzer.ideas, 
+        "similarity": [x[0] for x in analyzer.cos_similarity.tolist()], 
+        "distance": [x[0] for x in analyzer.distance_to_centroid.tolist()]
+    }
+    plot_data = {
+        "scatter_points": coords.tolist(),
+        "marker_sizes": marker_sizes.tolist(),
+        "ideas": analyzer.ideas,
+        "pairwise_similarity": analyzer.pairwise_similarity.tolist(),
+        "kmeans_data": kmeans_data
+    }
+    return (results, plot_data)
 
 class Analyzer:
     """
@@ -126,7 +145,9 @@ class Analyzer:
         self.pairwise_distance = pairwise_distances(idea_matrix, metric='cosine')
         # *Similarity* between each idea; for the weight of the connecting lines:
         self.pairwise_similarity = cosine_similarity(idea_matrix, idea_matrix)
-        
+        print("pairwise_similarity:")
+        for row in temp_pairwise_distance:
+            print(" | ".join(map(str, row)))        
         # Similarity to centroid:
         self.cos_similarity = cosine_similarity(idea_matrix, centroid.reshape(1, -1))
         # make it so that 0 is 'same' and 1 is very different. This is used to calculate the marker size:
