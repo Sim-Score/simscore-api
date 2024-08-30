@@ -59,6 +59,7 @@ class Analyzer:
     def preprocess_ideas(self):
         # Ensure NLTK resources are available
         nltk.download('punkt')
+        nltk.download('punkt_tab')
         nltk.download('stopwords')
         nltk.download('wordnet')
 
