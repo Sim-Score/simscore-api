@@ -1,12 +1,14 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Dict
 from openai import OpenAI
 import os
+from dataclasses import dataclass, asdict
 
 router = APIRouter()
 
-class EvaluatedIdea (BaseModel):
+@dataclass
+class EvaluatedIdea:
   idea: str
   similarity: float
   distance: float
@@ -14,12 +16,9 @@ class EvaluatedIdea (BaseModel):
 
 @router.post("/summarize_clusters")
 async def summarize_clusters(evaluated_ideas: List[EvaluatedIdea]):
-    print("Received ideas for evaluation:", evaluated_ideas)
-    
     api_key = os.environ.get("OPENAI_API_KEY")
     client = OpenAI()
     client.api_key = api_key
-
 
     # Group ideas by cluster
     clusters = {}
@@ -28,25 +27,43 @@ async def summarize_clusters(evaluated_ideas: List[EvaluatedIdea]):
             clusters[idea.cluster] = []
         clusters[idea.cluster].append(idea.idea)
     
-    #Send each cluster to ChatGPT and get summaries
-    summaries = {}
+    # First, prepare all clusters of ideas
+    all_clusters = []
     for cluster, ideas in clusters.items():
-      # Create a prompt for ChatGPT to generate a title for the cluster
-      prompt = f"Create a concise category name (max 3 words) for the following cluster of ideas:\n\n{'\n '.join(ideas)}\n\nCategory:"
+        all_clusters.append(f"Cluster {cluster}:\n{'\n'.join(ideas)}")
 
-      # Call the ChatGPT API to generate a title
-      response = client.chat.completions.create(
-          model="gpt-4o-mini",
-          messages=[
-              {"role": "system", "content": "You are a helpful assistant that creates concise and descriptive category titles for clusters of ideas."},
-              {"role": "user", "content": prompt}
-          ],
-          max_tokens=20
+    # Send all clusters to ChatGPT at once
+    prompt = f"Create concise category names (max 3 words each) for the following clusters of ideas. Ensure each category is distinct from the others:\n\n{'\n\n'.join(all_clusters)}\n\nCategories:"
+
+    class CategoryItem(BaseModel):
+      cluster: int
+      category_name: str
+
+    class CategoryResponse(BaseModel):
+      categories: List[CategoryItem] = Field(
+          default_factory=list,
+          example=[
+              {"cluster": 0, "category_name": "Example Category 1"},
+              {"cluster": 1, "category_name": "Example Category 2"}
+          ]
       )
 
-      # Extract the generated title from the response
-      title = response.choices[0].message.content.strip()
+    response = client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that creates concise and descriptive category titles for clusters of ideas. Ensure each category is distinct from the others."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=500,
+        response_format=CategoryResponse,
+    )
 
-      # Store the title in the summaries dictionary
-      summaries[cluster] = title    
+    # Extract the generated titles from the response
+    category_response = response.choices[0].message.parsed
+
+    # Make sure this list is ordered by cluster
+    cats = category_response.categories
+    cats.sort(key=lambda catItem: catItem.cluster)
+    print("Sorted Categories:", cats)
+    summaries = [cat.category_name for cat in cats]
     return summaries

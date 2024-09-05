@@ -6,19 +6,22 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 
 from fastapi import FastAPI
+from helpers.Analyzer import init_nltk_resources
 
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-from routes import analyze, manage, categorise, validate  # Import your route modules
+from routes import analyze, categorise, session, validate  # Import your route modules
 
 app = FastAPI()
 app.include_router(analyze.router)
-app.include_router(manage.router)
+app.include_router(session.router)
 app.include_router(categorise.router)
 app.include_router(validate.router)
+
+init_nltk_resources()
 
 ACCESS_CONTROL_ALLOW_CREDENTIALS = os.environ.get(
     'ACCESS_CONTROL_ALLOW_CREDENTIALS', 

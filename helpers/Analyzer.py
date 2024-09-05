@@ -1,3 +1,5 @@
+import os
+import time
 from typing import List
 from pathlib import Path
 import numpy as np
@@ -12,16 +14,65 @@ from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import nltk
-from nltk.corpus import stopwords, wordnet
+from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from sklearn.decomposition import PCA
+
+from typing import List, Tuple, TypedDict
+
+class KMeansData(TypedDict):
+    data: List[List[float]]
+    centers: List[List[float]]
+    cluster: List[int]
+
+class PlotData(TypedDict):
+    scatter_points: List[List[float]]
+    marker_sizes: List[float]
+    ideas: List[str]
+    pairwise_similarity: List[List[float]]
+    kmeans_data: KMeansData
+
+class Results(TypedDict):
+    ideas: List[str]
+    similarity: List[float]
+    distance: List[float]
+
+CentroidAnalysisResult = Tuple[Results, PlotData]
+
+
+def init_nltk_resources():
+    # Ensure NLTK resources are available, but check only once a day:
+
+    cache_file = os.path.join(os.path.dirname(__file__), '.nltk_resources_cache')
+    current_time = time.time()
+
+    # Check if cache file exists and is less than 24 hours old
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
+            last_execution = float(f.read().strip())
+        if current_time - last_execution < 86400:  # 86400 seconds = 24 hours
+            print("NLTK resources already initialized within the last 24 hours.")
+            return
+
+    print("Initializing NLTK resources...")
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+    print("Done initializing NLTK resources.")
+
+    # Update cache file with current timestamp
+    with open(cache_file, 'w') as f:
+        f.write(str(current_time))
 
 def centroid_analysis(ideas: list):
     # Initialize CountVectorizer to convert text into numerical vectors
     count_vectorizer = CountVectorizer()
     analyzer = Analyzer(ideas, count_vectorizer)
+    print("Preprocessing and analyzing the ideas...")
     coords, marker_sizes, kmeans_data = analyzer.process_get_data()
+    print("Done.")
 
     results = {
         "ideas": analyzer.ideas, 
@@ -57,12 +108,6 @@ class Analyzer:
         self.vectorizer = vectorizer
 
     def preprocess_ideas(self):
-        # Ensure NLTK resources are available
-        nltk.download('punkt')
-        nltk.download('punkt_tab')
-        nltk.download('stopwords')
-        nltk.download('wordnet')
-
         # Normalize words to their base form, e.g. swimming -> swim
         lemmatizer = WordNetLemmatizer()
 
@@ -146,9 +191,6 @@ class Analyzer:
         self.pairwise_distance = pairwise_distances(idea_matrix, metric='cosine')
         # *Similarity* between each idea; for the weight of the connecting lines:
         self.pairwise_similarity = cosine_similarity(idea_matrix, idea_matrix)
-        print("pairwise_similarity:")
-        for row in temp_pairwise_distance:
-            print(" | ".join(map(str, row)))        
         # Similarity to centroid:
         self.cos_similarity = cosine_similarity(idea_matrix, centroid.reshape(1, -1))
         # make it so that 0 is 'same' and 1 is very different. This is used to calculate the marker size:
@@ -282,33 +324,7 @@ class Analyzer:
 
         return n_clusters, cluster_labels
 
-    def visualize_kmeans_clusters_mds(self, n_clusters_and_labels):
-        """
-        Visualizes the k-means clustering results on the same plot as the distance-to-centroid plot
-        """
-        coords, _ = self.create_scatter_plot_data(1)
-
-        # Ensure cluster_results is always a list of tuples
-        if isinstance(n_clusters_and_labels[0], int):
-            n_clusters_and_labels = [n_clusters_and_labels]
-
-        fig, axes = plt.subplots(1, len(n_clusters_and_labels), figsize=(6*len(n_clusters_and_labels), 6))
-        if len(n_clusters_and_labels) == 1:
-            axes = [axes]
-
-        for ax, (n_clusters, labels) in zip(axes, n_clusters_and_labels):
-            scatter = ax.scatter(coords[:-1, 0], coords[:-1, 1], c=labels, cmap='viridis')
-            ax.set_title(f'{n_clusters} Clusters')
-            
-            # Add labels to each point
-            for i, (x, y) in enumerate(coords[:-1]):
-                ax.annotate(str(i+1), (x, y), xytext=(5, 5), textcoords='offset points')
-
-        plt.tight_layout()
-        plt.show()
-
-
-    def visualize_kmeans_clusters(self, n_clusters_and_labels):
+    def get_kmeans_data(self, n_clusters_and_labels):
         """
         Visualizes the k-means clustering results with points grouped by their cluster assignments.
         """
@@ -318,8 +334,6 @@ class Analyzer:
         # Use the idea matrix without the centroid
         idea_matrix = self.pairwise_distance[:-1, :-1]
 
-        fig, ax = plt.subplots(figsize=(6, 6))
-        
         kmeans_data_points = {}
 
         n_clusters, labels = n_clusters_and_labels
@@ -340,38 +354,14 @@ class Analyzer:
             "cluster": labels.tolist()
         }
 
-        # Plot the reduced data points
-        scatter = ax.scatter(reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap='viridis')
-        
-        # Plot the cluster centers
-        ax.scatter(reduced_centers[:, 0], reduced_centers[:, 1], c='red', marker='x', s=200, linewidths=3)
-
-        ax.set_title(f'{n_clusters} Clusters')
-        
-        # Add labels to each point
-        for i, (x, y) in enumerate(reduced_data):
-            ax.annotate(str(i+1), (x, y), xytext=(5, 5), textcoords='offset points')
-
-        plt.tight_layout()
-        plt.savefig('kmeans_clusters.png')
         return kmeans_data_points
-
+    
     def process_get_data(self):
         self.preprocess_ideas()
         self.calculate_similarities()
         coords, marker_sizes = self.create_scatter_plot_data(1)
         cluster_results = self.perform_kmeans_analysis()
-        kmeans_data = self.visualize_kmeans_clusters(cluster_results)
+        kmeans_data = self.get_kmeans_data(cluster_results)
     
         return coords, marker_sizes, kmeans_data
-
-    def process_all(self):
-        self.preprocess_ideas()
-        self.calculate_similarities()
-        print(f"{self.vectorizer.__class__.__name__} graph:")
-        self.create_scatter_plot(show_plot=False)
-        
-        # Perform and visualize k-means clustering with optimal k
-        cluster_results = self.perform_kmeans_analysis()
-        kmeans_data = self.visualize_kmeans_clusters(cluster_results)
     
