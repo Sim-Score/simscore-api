@@ -13,13 +13,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from routes import analyze, categorise, session, validate  # Import your route modules
+from routes import analyze, categorise, session, validate, star_rating  # Import your route modules
 
 app = FastAPI()
 app.include_router(analyze.router)
 app.include_router(session.router)
 app.include_router(categorise.router)
 app.include_router(validate.router)
+app.include_router(star_rating.router)
 
 init_nltk_resources()
 
