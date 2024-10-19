@@ -2,3 +2,4 @@ __pycache__/
 .venv/
 .env*
 *.png
+helpers/.nltk_resources_cache
