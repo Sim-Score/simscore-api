@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Optional
 from openai import OpenAI
 import os
 from dataclasses import dataclass, asdict
@@ -9,6 +9,7 @@ router = APIRouter()
 
 @dataclass
 class EvaluatedIdea:
+  id: Optional[str]
   idea: str
   similarity: float
   distance: float

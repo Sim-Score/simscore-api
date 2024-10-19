@@ -1,6 +1,8 @@
 import random
 import string
+import os
 from pydantic import BaseModel
+from typing import Union, List, Tuple, Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -11,17 +13,25 @@ from routes.categorise import summarize_clusters, EvaluatedIdea
 router = APIRouter()
 
 class RequestData(BaseModel):
-    ideas: list[str]
+    ideas: Any
     store_results: bool
 
 @router.post("/process")
 async def process_item(request: RequestData):
-    print("Received a set of ideas, processing...", request)
     ideas = request.ideas
+    hasIds = isinstance(ideas[0], list)
+    # It's a 2D array
+    if hasIds:
+      idea_to_id = {idea: id for id, idea in ideas}
+      ideas = [idea[1] for idea in ideas]
+
+
     res: CentroidAnalysisResult = centroid_analysis(ideas)
     (results, plot_data) = res
-    print("Analysis results: ", results)
     
+    if hasIds:
+      results["ids"] = [idea_to_id[idea] for idea in results['ideas']]
+      
     # Directly calculate the cluster summaries so we don't do it from the frontend whenever the ID page is loaded. (That would result in different titles on each reload 😢)
     evaluated_ideas = create_evaluated_ideas(results, plot_data)
     summaries = await summarize_clusters(evaluated_ideas)
@@ -49,6 +59,7 @@ def create_evaluated_ideas(results: Results, plot_data: PlotData):
     for index in range(len(results["ideas"])):
         evaluated_ideas.append(
             EvaluatedIdea(
+                id = results["ids"][index] if "ids" in results else None,
                 idea=results["ideas"][index],
                 similarity=results["similarity"][index],
                 distance=results["distance"][index],
