@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel, Field
+import json
 
 router = APIRouter()
 
@@ -50,8 +51,8 @@ async def validate_idea(request: dict):
       result = client.beta.threads.messages.list(
           thread_id=thread.id
       )
-      result_json = result.data[0].content[0].text.value
+      result_json = json.dumps(json.loads(result.data[0].content[0].text.value), indent=2)
       print("Result: ", result_json)
-      return JSONResponse(result_json)
+      return JSONResponse(content=result_json)
 
     raise Exception("OpenAI finished with: ", run.status)    

@@ -1,7 +1,7 @@
 from bson import ObjectId
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from helpers.db import db_client
+from ..helpers.db import db_client
 
 router = APIRouter()
 

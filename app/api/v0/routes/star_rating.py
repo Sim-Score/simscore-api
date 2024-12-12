@@ -2,7 +2,7 @@ from bson import ObjectId, InvalidBSON
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from helpers.db import db_client
+from ..helpers.db import db_client
 from statistics import mean
 
 router = APIRouter()

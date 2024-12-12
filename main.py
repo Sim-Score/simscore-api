@@ -1,58 +1,49 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastlimits import RateLimitingMiddleware, limit
+from app.core.settings import settings
+from app.core.limiter import limiter
 
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 from app.api.v0.helpers.Analyzer import init_nltk_resources
 import app.api.v0.routes as v0 
 import app.api.v1.routes as v1
 
 from dotenv import load_dotenv
 # Load environment variables from .env file
-load_dotenv()
-
+os.environ.clear()
+load_dotenv(override=True)
 
 # Main app for requests at the base url. This will serve documentation etc, but all API endpoints must go to a versioned one.
 app = FastAPI(
-    title="SimScore API",
-    description="API for calculating semantic similarity scores between ideas",
-    version="0.1.0",
-    contact={
-        "name": "SimScore Team",
-        "url": "https://simscore.xyz"
-    }
+  title=settings.PROJECT_NAME
 )
+limit(app, settings.GLOBAL_RATE_LIMIT)
 
+### V1 ###
+v1_app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version="1.0.0",
+)
+app.mount("/v1", v1_app)
+v1_app.include_router(v1.ideas.router)
+limit(v1_app, settings.RATE_LIMIT_PER_USER)
+### /V1 ###
+
+### V0 ###
 v0_app = FastAPI(
-    title="SimScore API",
-    description="API for calculating semantic similarity scores between ideas",
-    version="0.1.0",
-    contact={
-        "name": "SimScore Team",
-        "url": "https://simscore.xyz"
-    }
+  title="SimScore API",
+  description="API for calculating semantic similarity scores between ideas",
+  version="0.1.0",
 )
-
 app.mount("/v0", v0_app)
 v0_app.include_router(v0.analyze.router)
 v0_app.include_router(v0.session.router)
 v0_app.include_router(v0.categorise.router)
 v0_app.include_router(v0.validate.router)
 v0_app.include_router(v0.star_rating.router)
-
-v1_app = FastAPI(
-    title="SimScore API",
-    description="API for calculating semantic similarity scores between ideas",
-    version="1.0.0",
-    contact={
-        "name": "SimScore Team",
-        "url": "https://simscore.xyz"
-    }
-)
-
-app.mount("/v1", v1_app)
-v1_app.include_router(v1.ideas)
+limit(v0_app, settings.RATE_LIMIT_PER_USER)
+### /V0 ###
 
 init_nltk_resources()
 
@@ -76,6 +67,4 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
 
-@app.get("/")
-def index():
-    return {"message": "Hello There! To process ideas, send a list of strings to the /process endpoint."}
+app.add_middleware(RateLimitingMiddleware, strategy=limiter)

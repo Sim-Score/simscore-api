@@ -6,18 +6,65 @@ from typing import Union, List, Tuple, Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from helpers.Analyzer import centroid_analysis, Results, CentroidAnalysisResult, PlotData
-from helpers.db import db_client
-from routes.categorise import summarize_clusters, EvaluatedIdea
+from ..helpers.Analyzer import centroid_analysis, Results, CentroidAnalysisResult, PlotData
+from ..helpers.db import db_client
+from .categorise import summarize_clusters, EvaluatedIdea
 
 router = APIRouter()
 
 class RequestData(BaseModel):
-    ideas: Any
+    ideas: Union[List[str], List[Tuple[str, str]]]
     store_results: bool
 
-@router.post("/process")
-async def process_item(request: RequestData):
+    model_config = {
+        "json_schema_extra" : {
+            "example": {
+                "ideas": [
+                    ["id1", "First idea"],
+                    ["id2", "Second idea"]
+                ],
+                "store_results": True
+            }
+        }
+    }
+    
+class AnalyzedResponse(BaseModel):
+    id: str
+    results: Results
+    plot_data: PlotData
+    summaries: List[str]
+
+    model_config = {
+        "json_schema_extra" : {
+            "examples": [{
+                "id": "temp_ABC123",
+                "results": {
+                    "ideas": ["idea1", "idea2"],
+                    "similarity": [0.8, 0.6],
+                    "distance": [0.2, 0.4]
+                },
+                "plot_data": {"kmeans_data": {"cluster": [0, 1]}},
+                "summaries": ["Cluster 1 summary", "Cluster 2 summary"]
+            }]
+        }
+    }
+
+
+@router.post("/analyze", response_model=AnalyzedResponse)
+async def analyze_ideas(request: RequestData) -> AnalyzedResponse:
+    """
+    Analyze a list of ideas and calculate similarity scores.
+    
+    The ideas can be provided in two formats:
+    - Simple list of strings: ["idea1", "idea2"]
+    - List of ID-idea pairs: [["id1", "idea1"], ["id2", "idea2"]]
+    
+    Returns:
+    - Similarity scores for each idea
+    - Distance metrics
+    - Cluster assignments
+    - Plot data points
+    """
     ideas = request.ideas
     hasIds = isinstance(ideas[0], list)
     # It's a 2D array
@@ -52,7 +99,12 @@ async def process_item(request: RequestData):
       print("NOT storing data in the db")
       id = 'temp_' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
 
-    return JSONResponse(content={"id": id, "results": results, "plot_data": plot_data, "summaries": summaries})
+    return AnalyzedResponse(
+        id=id,
+        results=results,
+        plot_data=plot_data,
+        summaries=summaries
+    )
 
 def create_evaluated_ideas(results: Results, plot_data: PlotData):
     evaluated_ideas = []
