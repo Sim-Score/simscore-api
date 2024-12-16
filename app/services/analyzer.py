@@ -95,11 +95,9 @@ class Analyzer:
     1. Preprocesses the ideas by normalizing the text, removing stop words, and lemmatizing the words.
     2. Embeds the preprocessed ideas using GloVe word embeddings.
     3. Calculates the cosine similarity, pairwise similarity, and pairwise distance between the embedded ideas.
-    Optionally: 
-        4. Generates a scatter plot visualization of the ideas based on their distance to the centroid.
-        5. Generates a heatmap visualization of the pairwise similarity matrix.
-        6. Generates a network graph visualization of the ideas based on their pairwise distances.
-    
+    4. Optionally: 
+        Generates scatter plot data of the ideas based on their distance to the centroid.
+        
     The class provides a convenient `process_all()` method that runs all the analysis steps in sequence.
     """
     def __init__(self, ideas: List[str], vectorizer):
@@ -357,14 +355,10 @@ class Analyzer:
         return kmeans_data_points
     
     def process_get_data(self):
-        try: 
-            self.preprocess_ideas()
-            self.calculate_similarities()
-            coords, marker_sizes = self.create_scatter_plot_data(1)
-            cluster_results = self.perform_kmeans_analysis()
-            kmeans_data = self.get_kmeans_data(cluster_results)
-    
-            return coords, marker_sizes, kmeans_data
-        except Exception as e:
-            print('Exception in process_get_data: ', e)
-            raise
+        self.preprocess_ideas()
+        self.calculate_similarities()
+        coords, marker_sizes = self.create_scatter_plot_data(1)
+        cluster_results = self.perform_kmeans_analysis()
+        kmeans_data = self.get_kmeans_data(cluster_results)
+        return coords, marker_sizes, kmeans_data
+        

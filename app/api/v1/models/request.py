@@ -2,7 +2,8 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 
 class IdeaInput(BaseModel):
-    id: int
+    id: Optional[int | str] = None
+    author_id: Optional[int | str] = None
     idea: str
 
 class AdvancedFeatures(BaseModel):

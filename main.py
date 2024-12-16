@@ -1,9 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastlimits import RateLimitingMiddleware, limit
 from app.core.settings import settings
-from app.core.limiter import limiter
 
 from app.api.v0.helpers.Analyzer import init_nltk_resources
 import app.api.v0.routes as v0 
@@ -18,7 +16,6 @@ load_dotenv(override=True)
 app = FastAPI(
   title=settings.PROJECT_NAME
 )
-limit(app, settings.GLOBAL_RATE_LIMIT)
 
 ### V1 ###
 v1_app = FastAPI(
@@ -27,7 +24,6 @@ v1_app = FastAPI(
 )
 app.mount("/v1", v1_app)
 v1_app.include_router(v1.ideas.router)
-limit(v1_app, settings.RATE_LIMIT_PER_USER)
 ### /V1 ###
 
 ### V0 ###
@@ -42,7 +38,6 @@ v0_app.include_router(v0.session.router)
 v0_app.include_router(v0.categorise.router)
 v0_app.include_router(v0.validate.router)
 v0_app.include_router(v0.star_rating.router)
-limit(v0_app, settings.RATE_LIMIT_PER_USER)
 ### /V0 ###
 
 init_nltk_resources()
@@ -66,5 +61,3 @@ app.add_middleware(CORSMiddleware,
                    allow_methods=ACCESS_CONTROL_ALLOW_METHODS,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
-
-app.add_middleware(RateLimitingMiddleware, strategy=limiter)

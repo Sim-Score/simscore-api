@@ -2,10 +2,12 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 
 class RankedIdea(BaseModel):
-    id: int
+    id: Optional[int | str] = None
+    author_id: Optional[int | str] = None
     idea: str
     similarity_score: float
     cluster_id: int
+    cluster_name: str
 
 class GraphNode(BaseModel):
     id: int
@@ -14,7 +16,7 @@ class GraphNode(BaseModel):
 class GraphEdge(BaseModel):
     from_id: int
     to: int
-    weight: float
+    similarity: float
 
 class RelationshipGraph(BaseModel):
     nodes: List[GraphNode]

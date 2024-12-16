@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from typing import List
+
+from app.core.limiter import limiter
+from app.core.settings import settings
 
 from ..models.request import IdeaRequest
 from ..models.response import AnalysisResponse, RankedIdea, RelationshipGraph
@@ -8,14 +11,12 @@ from ....services.analyzer import centroid_analysis
 
 router = APIRouter(tags=["ideas"])
 
-def filter_something() -> bool:
-    print('Filter applied!')
-    return True
-
 @router.post("/rank-ideas", response_model=AnalysisResponse)
+@limiter.limit(settings.RATE_LIMIT_PER_USER)
 async def rank_ideas(
+    request: Request,
     ideaRequest: IdeaRequest,
-    token: str = Depends(verify_token),
+    token: str = Depends(verify_token),   # No effect for now; verification is disabled
 ) -> AnalysisResponse:
     print('Ranking ideas')
     """
@@ -37,7 +38,9 @@ async def rank_ideas(
         
     # Extract raw ideas for analysis
     ideas = [item.idea for item in ideaRequest.ideas]
-    id_mapping = {item.idea: item.id for item in ideaRequest.ideas}
+    id_mapping = {item.idea: {'id': item.id, 'author_id': item.author_id} for item in ideaRequest.ideas}
+    if len(ideas) < 4:
+      return Response(status_code=400, content='Please provide at least 4 items to analyze')
     
     # Perform core analysis
     results, plot_data = centroid_analysis(ideas)
@@ -45,12 +48,14 @@ async def rank_ideas(
     # Create ranked ideas response
     ranked_ideas = [
         RankedIdea(
-            id=id_mapping[idea],
+            id=id_mapping[idea]['id'],
+            author_id=id_mapping[idea]['author_id'],
             idea=idea,
-            similarity_score=results["similarity"][idx],
-            cluster_id=plot_data["kmeans_data"]["cluster"][idx]
+            similarity_score=results["similarity"][index],
+            cluster_id=plot_data["kmeans_data"]["cluster"][index],
+            cluster_name=''
         )
-        for idx, idea in enumerate(results["ideas"])
+        for index, idea in enumerate(results["ideas"])
     ]
     
     # Sort by similarity score
