@@ -13,4 +13,4 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy -c fly.dev.toml -a simscore-api-dev --remote-only
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_DEV }}
+          FLY_API_TOKEN_DEV: ${{ secrets.FLY_API_TOKEN_DEV }}
