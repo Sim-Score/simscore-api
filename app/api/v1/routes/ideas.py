@@ -1,13 +1,15 @@
 from fastapi import APIRouter, Depends, Request, Response
 from typing import List
+import json
 
 from app.core.limiter import limiter
 from app.core.settings import settings
+from ..dependencies.auth import verify_token
 
+from ....services.analyzer import centroid_analysis
 from ..models.request import IdeaRequest
 from ..models.response import AnalysisResponse, RankedIdea, RelationshipGraph
-from ..dependencies.auth import verify_token
-from ....services.analyzer import centroid_analysis
+from app.services.types import PlotData, Results
 
 router = APIRouter(tags=["ideas"])
 
@@ -44,7 +46,7 @@ async def rank_ideas(
     
     # Perform core analysis
     results, plot_data = centroid_analysis(ideas)
-    
+
     # Create ranked ideas response
     ranked_ideas = [
         RankedIdea(
@@ -72,26 +74,26 @@ async def rank_ideas(
         if ideaRequest.advanced_features.relationship_graph:
             response["relationship_graph"] = RelationshipGraph(
                 nodes=[{"id": idea.id, "label": idea.idea} for idea in ranked_ideas],
-                edges=_generate_edges(ranked_ideas, results)
+                edges=_generate_edges(ranked_ideas, plot_data.get("pairwise_similarity", []))
             )
             
         if ideaRequest.advanced_features.pairwise_similarity_matrix:
-            response["pairwise_similarity_matrix"] = results.get("pairwise_similarity")
-    print('Results calculated successfully! ', response)
+            response["pairwise_similarity_matrix"] = plot_data.get("pairwise_similarity")
+    print('Results calculated successfully!\n', response)
     return AnalysisResponse(**response)
 
-def _generate_edges(ranked_ideas: List[RankedIdea], results: dict) -> List[dict]:
+def _generate_edges(ranked_ideas: List[RankedIdea], similarity_matrix: List) -> List[dict]:
     """Generate graph edges based on similarity scores"""
     edges = []
-    similarity_matrix = results.get("pairwise_similarity", [])
     
-    for i, idea1 in enumerate(ranked_ideas):
-        for j, idea2 in enumerate(ranked_ideas[i+1:], i+1):
-            if similarity_matrix[i][j] > 0.5:  # Configurable threshold
-                edges.append({
-                    "from_id": idea1.id,
-                    "to": idea2.id,
-                    "weight": similarity_matrix[i][j]
-                })
-    
+    for i, idea_from in enumerate(ranked_ideas):
+      if i+1 > len(similarity_matrix): break
+      for j, idea_to in enumerate(ranked_ideas[i+1:], i+1):
+          edge = {
+                        "from_id": idea_from.id,
+                        "to_id": idea_to.id,
+                        "similarity": similarity_matrix[i][j]
+                    }
+          edges.append(edge)
+
     return edges

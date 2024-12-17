@@ -8,37 +8,17 @@ from numpy.random import RandomState
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from sklearn import manifold
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import pairwise_distances
-from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+from sklearn.metrics.pairwise import cosine_similarity, pairwise_distances
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
-from sklearn.decomposition import PCA
-
-from typing import List, Tuple, TypedDict
-
-class KMeansData(TypedDict):
-    data: List[List[float]]
-    centers: List[List[float]]
-    cluster: List[int]
-
-class PlotData(TypedDict):
-    scatter_points: List[List[float]]
-    marker_sizes: List[float]
-    ideas: List[str]
-    pairwise_similarity: List[List[float]]
-    kmeans_data: KMeansData
-
-class Results(TypedDict):
-    ideas: List[str]
-    similarity: List[float]
-    distance: List[float]
-
-CentroidAnalysisResult = Tuple[Results, PlotData]
+from typing import List
+from .types import CentroidAnalysisResult, PlotData, Results
 
 
 def init_nltk_resources():
@@ -66,7 +46,7 @@ def init_nltk_resources():
     with open(cache_file, 'w') as f:
         f.write(str(current_time))
 
-def centroid_analysis(ideas: list):
+def centroid_analysis(ideas: list) -> CentroidAnalysisResult:
     # Initialize CountVectorizer to convert text into numerical vectors
     count_vectorizer = CountVectorizer()
     analyzer = Analyzer(ideas, count_vectorizer)
@@ -74,18 +54,18 @@ def centroid_analysis(ideas: list):
     coords, marker_sizes, kmeans_data = analyzer.process_get_data()
     print("Done.")
 
-    results = {
-        "ideas": analyzer.ideas, 
-        "similarity": [x[0] for x in analyzer.cos_similarity.tolist()], 
-        "distance": [x[0] for x in analyzer.distance_to_centroid.tolist()]
-    }
-    plot_data = {
-        "scatter_points": coords.tolist(),
-        "marker_sizes": marker_sizes.tolist(),
-        "ideas": analyzer.ideas,
-        "pairwise_similarity": analyzer.pairwise_similarity.tolist(),
-        "kmeans_data": kmeans_data
-    }
+    results = Results(
+        ideas = analyzer.ideas, 
+        similarity = [x[0] for x in analyzer.cos_similarity.tolist()], 
+        distance = [x[0] for x in analyzer.distance_to_centroid.tolist()]
+    )
+    plot_data = PlotData(
+        scatter_points = coords.tolist(),
+        marker_sizes = marker_sizes.tolist(),
+        ideas = analyzer.ideas,
+        pairwise_similarity = analyzer.pairwise_similarity.tolist(),
+        kmeans_data = kmeans_data
+    )
     return (results, plot_data)
 
 class Analyzer:
@@ -276,6 +256,8 @@ class Analyzer:
         # Suggest optimal k
         optimal_k_inertia = self._find_elbow(k_range, inertias)
         optimal_k_silhouette = silhouette_scores.index(max(silhouette_scores)) + 3  # +3 because we start from k=2 and index from 0
+        # TODO: Taking just the max silhouette score is actually also a bit naive; we should do additional checks, 
+        # and maybe combine this approach with elbow somehow. See https://vitalflux.com/elbow-method-silhouette-score-which-better/#:~:text=The%20elbow%20method%20is%20used,cluster%20or%20across%20different%20clusters.
 
         print(f"Suggested optimal k by Elbow method: {optimal_k_inertia}")
         print(f"Suggested optimal k by Silhouette score: {optimal_k_silhouette}")

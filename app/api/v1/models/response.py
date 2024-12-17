@@ -15,7 +15,7 @@ class GraphNode(BaseModel):
 
 class GraphEdge(BaseModel):
     from_id: int
-    to: int
+    to_id: int
     similarity: float
 
 class RelationshipGraph(BaseModel):
@@ -24,5 +24,5 @@ class RelationshipGraph(BaseModel):
 
 class AnalysisResponse(BaseModel):
     ranked_ideas: List[RankedIdea]
-    relationship_graph: Optional[RelationshipGraph]
-    pairwise_similarity_matrix: Optional[List[List[float]]]
+    relationship_graph: Optional[RelationshipGraph] = None
+    pairwise_similarity_matrix: Optional[List[List[float]]] = None

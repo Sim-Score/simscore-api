@@ -2,11 +2,12 @@ import pytest
 from fastapi.testclient import TestClient
 from app.api.v1.routes.ideas import router
 from app.api.v1.models.request import IdeaRequest, AdvancedFeatures
-from app.api.v1.models.response import AnalysisResponse
+from app.api.v1.models.response import AnalysisResponse, RankedIdea
 from fastapi import FastAPI
 from app.core.limiter import limiter
 from app.core.settings import settings
 import json
+from slowapi.errors import RateLimitExceeded
 
 app = FastAPI()
 app.include_router(router)
@@ -31,21 +32,36 @@ def disable_limiter():
   yield
   limiter.enabled = True
 
-def test_rank_ideas_invalid_request(valid_token):
-    ideas = [{"id": "1", "idea": "Test idea"}]
+def test_request_not_enough_ideas(valid_token):
+    ideas = [{"id": "1", "idea": "Test idea"}]  # Some missing fields
     response = client.post(
         "/rank-ideas",
         json={"ideas": ideas},
         headers={"Authorization": f"Bearer {valid_token}"}
     )
     assert response.status_code == 400, f"Expected status code 400 but got {response.status_code}: {response}"
+    assert "at least 4" in str(response.content)  
+
+def test_request_invalid_idea(valid_token):
+    ideas = [
+      {"id": "1"}
+    ]  
+    response = client.post(
+        "/rank-ideas",
+        json={"ideas": ideas},
+        headers={"Authorization": f"Bearer {valid_token}"}
+    )
+    assert response.status_code == 422
+    error_detail = response.json()
+    print(error_detail)
+    assert "detail" in error_detail
+    assert "idea" in str(error_detail["detail"])
 
 def test_rank_ideas_success(valid_token, mock_ideas):
     response = client.post(
         "/rank-ideas",
         json={
             "ideas": mock_ideas,
-            
         },
         headers={"Authorization": f"Bearer {valid_token}"}
     )
@@ -76,26 +92,70 @@ def test_rank_ideas_with_advanced_features(valid_token, mock_ideas):
     assert "nodes" in data["relationship_graph"]
     assert "edges" in data["relationship_graph"]
 
-# def test_generate_edges():
-#     from app.api.v1.routes.ideas import _generate_edges
-#     ranked_ideas = [
-#         {"id": "1", "idea": "First"},
-#         {"id": "2", "idea": "Second"}
-#     ]
-#     results = {
-#         "pairwise_similarity": [[1.0, 0.6], [0.6, 1.0]]
-#     }
-#     edges = _generate_edges(ranked_ideas, results)
-#     assert isinstance(edges, list)
-#     assert len(edges) == 1
-#     assert edges[0]["from_id"] == "1"
-#     assert edges[0]["to"] == "2"
-#     assert edges[0]["weight"] == 0.6
+def test_generate_edges_2x2():
+    from app.api.v1.routes.ideas import _generate_edges
+    ranked_ideas = [
+        RankedIdea(
+            id="1", 
+            idea="First",
+            similarity_score=1.0,
+            cluster_id=0,
+            cluster_name=""
+        ),
+        RankedIdea(
+            id="2", 
+            idea="Second",
+            similarity_score=0.8,
+            cluster_id=0,
+            cluster_name=""
+        )
+    ]
+    matrix = [[1.0, 0.6], [0.6, 1.0]]
+    edges = _generate_edges(ranked_ideas, matrix)
+    assert isinstance(edges, list)
+    assert len(edges) == 1
+    assert edges[0]["from_id"] == "1"
+    assert edges[0]["to_id"] == "2"
+    assert edges[0]["similarity"] == 0.6
+
+def test_generate_edges_3x3():
+    from app.api.v1.routes.ideas import _generate_edges
+    ranked_ideas = [
+        RankedIdea(
+            id="1", 
+            idea="First",
+            similarity_score=1.0,
+            cluster_id=0,
+            cluster_name=""
+        ),
+        RankedIdea(
+            id="2", 
+            idea="Second",
+            similarity_score=0.8,
+            cluster_id=0,
+            cluster_name=""
+        ),
+        RankedIdea(
+            id="3", 
+            idea="Third",
+            similarity_score=0.6,
+            cluster_id=1,
+            cluster_name=""
+        )
+    ]
+    matrix = [[1.0, 0.6, 0.5], [0.6, 1.0, 0.2], [0.5, 0.2, 1.0]]
+    edges = _generate_edges(ranked_ideas, matrix)
+    assert isinstance(edges, list)
+    assert len(edges) == 3  # 1->2, 1->3, 2->3
     
-@pytest.mark.parametrize('disable_limiter', [], indirect=True)
-def test_rate_limit_enforced():
-  client.post(
-    "/rank-ideas",
-        json={"ideas": mock_ideas},
-        headers={"Authorization": f"Bearer {valid_token}"}
-  )
+    assert edges[0]["from_id"] == "1"
+    assert edges[0]["to_id"] == "2"
+    assert edges[0]["similarity"] == 0.6
+    
+    assert edges[1]["from_id"] == "1"
+    assert edges[1]["to_id"] == "3"
+    assert edges[1]["similarity"] == 0.5
+    
+    assert edges[2]["from_id"] == "2"
+    assert edges[2]["to_id"] == "3"
+    assert edges[2]["similarity"] == 0.2    

@@ -1,6 +1,8 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 from app.core.settings import settings
 
 from app.api.v0.helpers.Analyzer import init_nltk_resources
@@ -61,3 +63,5 @@ app.add_middleware(CORSMiddleware,
                    allow_methods=ACCESS_CONTROL_ALLOW_METHODS,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
