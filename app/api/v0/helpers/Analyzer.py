@@ -44,7 +44,7 @@ CentroidAnalysisResult = Tuple[Results, PlotData]
 def init_nltk_resources():
     # Ensure NLTK resources are available, but check only once a day:
 
-    cache_file = os.path.join(os.path.dirname(__file__), '.nltk_resources_cache')
+    cache_file = os.path.join(os.path.dirname(__file__), '.nltk')
     current_time = time.time()
 
     # Check if cache file exists and is less than 24 hours old

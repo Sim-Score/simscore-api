@@ -3,6 +3,6 @@ __pycache__/
 .env*
 *.png
 helpers/.nltk_resources_cache
-app/api/v0/helpers/.nltk_resources_cache
+**/.nltk
 .vscode/settings.json
 
