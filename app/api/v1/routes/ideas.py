@@ -40,7 +40,7 @@ async def rank_ideas(
         
     # Extract raw ideas for analysis
     ideas = [item.idea for item in ideaRequest.ideas]
-    id_mapping = {item.idea: {'id': item.id, 'author_id': item.author_id} for item in ideaRequest.ideas}
+    id_mapping = {item.idea: {'id': item.id or 1, 'author_id': item.author_id} for item in ideaRequest.ideas}
     if len(ideas) < 4:
       return Response(status_code=400, content='Please provide at least 4 items to analyze')
     
