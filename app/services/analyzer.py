@@ -182,55 +182,6 @@ class Analyzer:
         marker_sizes = self.cos_similarity
         return coords, marker_sizes
 
-    def create_scatter_plot(self, show_plot=False):
-        coords, marker_sizes = self.create_scatter_plot_data(1)
-        
-        def normalize(array, min_size=10, max_size=100):
-            min_value = array.min()
-            max_value = array.max()
-            normalizedValue = (array - min_value) / (max_value - min_value)
-            return min_size + normalizedValue * (max_size - min_size)
-      
-        # Normalize marker sizes for the plot
-        normalized_marker_sizes = normalize(marker_sizes)
-
-        fig, ax = plt.subplots(figsize=(8, 6))
-        scatter = ax.scatter(coords[:, 0], coords[:, 1], c=self.distance_to_centroid, cmap='viridis', s=normalized_marker_sizes)
-
-        # Stronger Connection Lines for stronger pairwise similarities: 
-        segments = []
-        line_weights = []
-        for i in range(len(coords)):
-            for j in range(len(coords)):
-                segments.append([coords[i], coords[j]])
-                line_weights.append(pow(self.pairwise_similarity[i,j], 2))
-
-        lc = LineCollection(
-            segments, zorder=0, cmap=plt.cm.Blues, norm=plt.Normalize(0, 1), linewidths=line_weights
-        )
-        ax.add_collection(lc)
-
-        # Add labels to each point
-        labels = []
-        for i in range(len(coords)):
-            if i == len(coords)-1:  # Centroid, give it a special label and size
-                labels.append(ax.annotate(f"Centroid", (coords[i, 0], coords[i, 1]), xytext=(7, 3), textcoords='offset pixels'))
-            else:
-                text = f"{i+1}"
-                label = ax.annotate(text, (coords[i, 0], coords[i, 1]), xytext=(7, 3), textcoords='offset pixels')
-                labels.append(label)
-
-        # Add a colorbar to show the mapping of colors to distances
-        cbar = fig.colorbar(scatter, ax=ax)
-        cbar.set_label('Distance to Centroid')
-
-        # Set the axis labels and title
-        ax.set_title('Distance to Centroid Visualization')
-
-        if show_plot:
-            # Show the plot
-            plt.show()
-
     def find_optimal_clusters(self, max_clusters=10):
         """
         Finds the optimal number of clusters using the elbow method and silhouette score.

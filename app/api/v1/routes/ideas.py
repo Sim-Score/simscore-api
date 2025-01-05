@@ -70,10 +70,23 @@ async def rank_ideas(
         "pairwise_similarity_matrix": None
     }
     
+
     if ideaRequest.advanced_features:
         if ideaRequest.advanced_features.relationship_graph:
+            coords = plot_data.get("scatter_points", [])
+            nodes = [
+                  {
+                    "id": idea.id, 
+                    "coordinates": {
+                      "x": coords[i][0], 
+                      "y": coords[i][1]
+                    }
+                  } 
+                  for i, idea in enumerate(ranked_ideas)]
+            # Add the centroid:
+            nodes.append({"id": "Centroid", "coordinates": {"x": coords[-1][0], "y": coords[-1][0]}})
             response["relationship_graph"] = RelationshipGraph(
-                nodes=[{"id": idea.id, "label": idea.idea} for idea in ranked_ideas],
+                nodes=nodes,
                 edges=_generate_edges(ranked_ideas, plot_data.get("pairwise_similarity", []))
             )
             
@@ -95,5 +108,15 @@ def _generate_edges(ranked_ideas: List[RankedIdea], similarity_matrix: List) -> 
                         "similarity": similarity_matrix[i][j]
                     }
           edges.append(edge)
+    
+    # Add edges to centroid
+    for i, idea in enumerate(ranked_ideas):
+        edge = {
+            "from_id": idea.id,
+            "to_id": "Centroid",  # centroid id
+            "similarity": idea.similarity_score
+        }
+        edges.append(edge)
+    
 
     return edges

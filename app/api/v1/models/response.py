@@ -2,20 +2,24 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 
 class RankedIdea(BaseModel):
-    id: Optional[int | str] = None
+    id: int | str
     author_id: Optional[int | str] = None
     idea: str
     similarity_score: float
     cluster_id: int
     cluster_name: str
 
+class Coordinates(BaseModel):
+  x: float
+  y: float  
+  
 class GraphNode(BaseModel):
-    id: int
-    label: str
-
+  id: int | str
+  coordinates: Coordinates
+  
 class GraphEdge(BaseModel):
-    from_id: int
-    to_id: int
+    from_id: int | str
+    to_id: int | str
     similarity: float
 
 class RelationshipGraph(BaseModel):
