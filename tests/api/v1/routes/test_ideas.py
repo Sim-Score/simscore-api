@@ -100,14 +100,12 @@ def test_generate_edges_2x2():
             idea="First",
             similarity_score=1.0,
             cluster_id=0,
-            cluster_name=""
         ),
         RankedIdea(
             id="2", 
             idea="Second",
             similarity_score=0.8,
             cluster_id=0,
-            cluster_name=""
         )
     ]
     matrix = [[1.0, 0.6], [0.6, 1.0]]
@@ -126,21 +124,18 @@ def test_generate_edges_3x3():
             idea="First",
             similarity_score=1.0,
             cluster_id=0,
-            cluster_name=""
         ),
         RankedIdea(
             id="2", 
             idea="Second",
             similarity_score=0.8,
             cluster_id=0,
-            cluster_name=""
         ),
         RankedIdea(
             id="3", 
             idea="Third",
             similarity_score=0.6,
             cluster_id=1,
-            cluster_name=""
         )
     ]
     matrix = [[1.0, 0.6, 0.5], [0.6, 1.0, 0.2], [0.5, 0.2, 1.0]]

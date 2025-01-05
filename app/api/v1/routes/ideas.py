@@ -4,12 +4,13 @@ import json
 
 from app.core.limiter import limiter
 from app.core.settings import settings
+from app.services.clustering import summarize_clusters
 from ..dependencies.auth import verify_token
 
 from ....services.analyzer import centroid_analysis
 from ..models.request import IdeaRequest
-from ..models.response import AnalysisResponse, RankedIdea, RelationshipGraph
-from app.services.types import PlotData, Results
+from ..models.response import AnalysisResponse, RelationshipGraph
+from app.services.types import PlotData, Results, RankedIdea
 
 router = APIRouter(tags=["ideas"])
 
@@ -55,7 +56,6 @@ async def rank_ideas(
             idea=idea,
             similarity_score=results["similarity"][index],
             cluster_id=plot_data["kmeans_data"]["cluster"][index],
-            cluster_name=''
         )
         for index, idea in enumerate(results["ideas"])
     ]
@@ -67,7 +67,8 @@ async def rank_ideas(
     response = {
         "ranked_ideas": ranked_ideas,
         "relationship_graph": None,
-        "pairwise_similarity_matrix": None
+        "pairwise_similarity_matrix": None,
+        "cluster_names": None
     }
     
 
@@ -92,6 +93,9 @@ async def rank_ideas(
             
         if ideaRequest.advanced_features.pairwise_similarity_matrix:
             response["pairwise_similarity_matrix"] = plot_data.get("pairwise_similarity")
+            
+        if ideaRequest.advanced_features.cluster_names:
+            response["cluster_names"] = await summarize_clusters(ranked_ideas)
     print('Results calculated successfully!\n', response)
     return AnalysisResponse(**response)
 

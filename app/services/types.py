@@ -1,4 +1,6 @@
-from typing import List, TypedDict, Tuple
+from typing import List, Optional, TypedDict, Tuple
+
+from pydantic import BaseModel
 
 class KMeansData(TypedDict):
     data: List[List[float]]
@@ -18,3 +20,14 @@ class Results(TypedDict):
     distance: List[float]
 
 CentroidAnalysisResult = Tuple[Results, PlotData]
+
+class ClusterName(BaseModel):
+    id: int
+    name: str
+
+class RankedIdea(BaseModel):
+    id: int | str
+    author_id: Optional[int | str] = None
+    idea: str
+    similarity_score: float
+    cluster_id: int

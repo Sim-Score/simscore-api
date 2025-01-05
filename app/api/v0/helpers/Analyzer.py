@@ -321,6 +321,7 @@ class Analyzer:
 
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         cluster_labels = kmeans.fit_predict(idea_matrix)
+        print("Cluster labels: ", cluster_labels)
 
         return n_clusters, cluster_labels
 

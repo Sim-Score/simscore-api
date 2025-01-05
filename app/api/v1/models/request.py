@@ -9,6 +9,7 @@ class IdeaInput(BaseModel):
 class AdvancedFeatures(BaseModel):
     relationship_graph: bool = False
     pairwise_similarity_matrix: bool = False
+    cluster_names: bool = False
 
 class IdeaRequest(BaseModel):
     ideas: List[IdeaInput]
