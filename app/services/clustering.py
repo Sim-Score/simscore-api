@@ -9,8 +9,8 @@ from app.services.types import ClusterName, RankedIdea
 
 async def summarize_clusters(ranked_ideas: List[RankedIdea]) -> List[ClusterName]:
     api_key = settings.OPENAI_API_KEY
-    print('Using OPENAI_API_KEY: ', api_key[:5] + '...' + api_key[-5:])
-    client = OpenAI(api_key)
+    client = OpenAI()
+    client.api_key = api_key
 
     # Group ideas by cluster
     clusters = {}
