@@ -15,11 +15,14 @@ def convert_spreadsheet_to_request(
     """
     Convert a spreadsheet file to an IdeaRequest object.
     
+    Use this with pythonpath adjusted like so:
+    PYTHONPATH=$PYTHONPATH:/home/path/to/simscore-api python aux_tools/convert_file.py 'file.csv' id_col_header data_col_header 
+    
     Args:
         file_path: Path to the spreadsheet file (xlsx, csv, etc)
         id_column: Name of the column containing IDs
         data_column: Name of the column containing idea text
-        include_advanced_features: Whether to include advanced analysis features
+        advanced_features: Whether to include advanced analysis features
         
     Returns:
         IdeaRequest object ready for the /rank-ideas endpoint
