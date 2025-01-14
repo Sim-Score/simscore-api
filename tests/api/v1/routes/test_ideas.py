@@ -5,7 +5,7 @@ from app.api.v1.models.request import IdeaRequest, AdvancedFeatures
 from app.api.v1.models.response import AnalysisResponse, RankedIdea
 from fastapi import FastAPI
 from app.core.limiter import limiter
-from app.core.settings import settings
+from app.core.config import settings
 import json
 from slowapi.errors import RateLimitExceeded
 from unittest.mock import patch
@@ -35,24 +35,22 @@ def disable_limiter():
   yield
   limiter.enabled = True
   
-def test_request_not_enough_ideas(valid_token):
+def test_request_not_enough_ideas():
     ideas = [{"id": "1", "idea": "Test idea"}]  # Some missing fields
     response = client.post(
         "/rank-ideas",
-        json={"ideas": ideas},
-        headers={"Authorization": f"Bearer {valid_token}"}
+        json={"ideas": ideas}
     )
     assert response.status_code == 400, f"Expected status code 400 but got {response.status_code}: {response}"
     assert "at least 4" in str(response.content)  
 
-def test_request_invalid_idea(valid_token):
+def test_request_invalid_idea():
     ideas = [
       {"id": "1"}
     ]  
     response = client.post(
         "/rank-ideas",
-        json={"ideas": ideas},
-        headers={"Authorization": f"Bearer {valid_token}"}
+        json={"ideas": ideas}
     )
     assert response.status_code == 422
     error_detail = response.json()
@@ -60,13 +58,12 @@ def test_request_invalid_idea(valid_token):
     assert "detail" in error_detail
     assert "idea" in str(error_detail["detail"])
 
-def test_rank_ideas_success(valid_token, mock_ideas):
+def test_rank_ideas_success(mock_ideas):
     response = client.post(
         "/rank-ideas",
         json={
             "ideas": mock_ideas,
-        },
-        headers={"Authorization": f"Bearer {valid_token}"}
+        }
     )
     assert response.status_code == 200
     data = response.json()
@@ -82,10 +79,10 @@ def test_rank_ideas_with_advanced_features(valid_token, mock_ideas):
             "ideas": mock_ideas,
             "advanced_features": {
                 "relationship_graph": True,
-                "pairwise_similarity_matrix": True
+                "pairwise_similarity_matrix": True,
+                "cluster_names": True
             }
         },
-        headers={"Authorization": f"Bearer {valid_token}"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -192,7 +189,6 @@ def test_rank_ideas_with_cluster_names(valid_token, mock_ideas):
                 "cluster_names": True
             }
         },
-        headers={"Authorization": f"Bearer {valid_token}"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -224,6 +220,6 @@ async def test_summarize_clusters():
         cluster_names = await summarize_clusters(ranked_ideas)
         
         assert len(cluster_names) == len(unique_clusters)
-        assert all(isinstance(c.id, int) for c in cluster_names)
-        assert all(isinstance(c.name, str) for c in cluster_names)
+        assert all(isinstance(c["id"], int) for c in cluster_names)
+        assert all(isinstance(c["name"], str) for c in cluster_names)
         mock_get_names.assert_called_once()

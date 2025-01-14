@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
-from app.core.settings import settings
+from app.core.config import settings
 
 from app.api.v0.helpers.Analyzer import init_nltk_resources
 import app.api.v0.routes as v0 

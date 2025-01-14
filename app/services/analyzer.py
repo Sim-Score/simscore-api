@@ -66,7 +66,7 @@ def centroid_analysis(ideas: list) -> CentroidAnalysisResult:
         pairwise_similarity = analyzer.pairwise_similarity.tolist(),
         kmeans_data = kmeans_data
     )
-    return (results, plot_data)
+    return results, plot_data
 
 class Analyzer:
     """

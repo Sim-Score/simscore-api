@@ -4,7 +4,7 @@ from openai import OpenAI
 import os
 from dataclasses import dataclass, asdict
 
-from app.core.settings import settings
+from app.core.config import settings
 from app.services.types import ClusterName, RankedIdea
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings

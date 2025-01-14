@@ -5,7 +5,7 @@ from app.api.v1.models.request import IdeaRequest, AdvancedFeatures
 from app.api.v1.models.response import AnalysisResponse, RankedIdea
 from fastapi import FastAPI
 from app.core.limiter import limiter
-from app.core.settings import settings
+from app.core.config import settings
 import json
 from slowapi.errors import RateLimitExceeded
 

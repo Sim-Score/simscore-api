@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import Request
-from app.core.settings import settings
+from app.core.config import settings
 
 async def check_advanced_features(request: Request) -> bool:
     """
