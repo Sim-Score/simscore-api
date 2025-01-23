@@ -5,8 +5,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from app.core.config import settings
 
-from app.api.v0.helpers.Analyzer import init_nltk_resources
-import app.api.v0.routes as v0 
+from app.services.analyzer import init_nltk_resources
 import app.api.v1.routes as v1
 
 from dotenv import load_dotenv
@@ -27,20 +26,6 @@ v1_app = FastAPI(
 app.mount("/v1", v1_app)
 v1_app.include_router(v1.ideas.router)
 ### /V1 ###
-
-### V0 ###
-v0_app = FastAPI(
-  title="SimScore API",
-  description="API for calculating semantic similarity scores between ideas",
-  version="0.1.0",
-)
-app.mount("/v0", v0_app)
-v0_app.include_router(v0.analyze.router)
-v0_app.include_router(v0.session.router)
-v0_app.include_router(v0.categorise.router)
-v0_app.include_router(v0.validate.router)
-v0_app.include_router(v0.star_rating.router)
-### /V0 ###
 
 init_nltk_resources()
 
