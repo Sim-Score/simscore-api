@@ -53,6 +53,12 @@ async def rank_ideas(
     if num_ideas < 4:
         return Response(status_code=400, content='Please provide at least 4 items to analyze')
 
+    if num_ideas > 10_000:
+        return Response(status_code=400, content='Please provide less than 10000 items to analyze')
+
+    if total_bytes > 10_000_000:
+        return Response(status_code=400, content='Please provide less than 10MB of data to analyze')
+
     # Check credits for basic analysis
     user_id = user_info["user_id"]
     
