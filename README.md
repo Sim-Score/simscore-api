@@ -3,7 +3,8 @@
 An API for semantic similarity analysis and idea ranking.
 
 Demo UI: https://simscore.xyz/
-API URL: https://simscore-api.fly.dev
+
+API URL: https://simscore-api-dev.fly.dev
 
 ## Features
 
