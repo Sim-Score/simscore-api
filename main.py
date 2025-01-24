@@ -25,6 +25,7 @@ v1_app = FastAPI(
 )
 app.mount("/v1", v1_app)
 v1_app.include_router(v1.ideas.router)
+v1_app.include_router(v1.auth.router)
 ### /V1 ###
 
 init_nltk_resources()

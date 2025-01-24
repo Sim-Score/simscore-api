@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from jose import jwt
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import HTTPException, Request, Security
@@ -11,49 +11,88 @@ from .config import settings
 security = HTTPBearer(auto_error=False) # Authentication is optional!
 
 async def authenticate_user(email: str, password: str):
-    user = db.auth.sign_in({
+    session = db.auth.sign_in_with_password({
         "email": email,
         "password": password
     })
+    user = session.user
+    if not user.user_metadata["email_verified"]:
+        raise HTTPException(status_code=401, detail="Email not verified. Please check your inpox & spam")
 
-    token_data = {
-        "user_id": user.id,
-        "email": email,
-        "is_guest": False
-    }
-    return create_access_token(token_data)
+    return user
 
 async def create_user(email: str, password: str):
-    user = db.auth.sign_up({
+    session = db.auth.sign_up({
         "email": email,
         "password": password
     })
+    
+    user = session.user
     
     db.table('credits').insert({
         'user_id': user.id,
-        'balance': settings.INITIAL_USER_CREDITS
+        'balance': settings.USER_DAILY_CREDITS  # starting balance for registered users
     }).execute()
-    
-    token_data = {
-        "user_id": user.id,
-        "email": email,
-        "is_guest": False
-    }
-    return create_access_token(token_data)
 
-def create_access_token(user_data: dict) -> str:
+def create_api_key(user) -> str:
     """Create JWT token for API authentication"""
-    expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    expire = datetime.now(datetime.timezone.utc) + expires_delta
+  
+    key_id = str(uuid4())
+
+    user_data = {
+        "user_id": user.id,
+        "email": user.email,
+        "is_guest": False,
+        "key_id": key_id,
+        "token_type": "api_key"
+    }
     
-    to_encode = user_data.copy()
-    to_encode.update({"exp": expire})
-    
-    return jwt.encode(
-        to_encode, 
+    api_key = jwt.encode(
+        user_data, 
         settings.SECRET_KEY, 
         algorithm="HS256"
     )
+    
+    # Store API key metadata in database
+    db.table('api_keys').insert({
+        'key_id': key_id,
+        'user_id': user.id,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }).execute()
+    
+    return api_key
+
+async def remove_api_key(user, key):
+  decoded = jwt.decode(key, settings.SECRET_KEY, algorithms=["HS256"])
+  key_id = decoded["key_id"]
+  db.table('api_keys').delete().eq('key_id', key_id).eq('user_id', user["user_id"]).execute()
+
+async def list_api_keys(user):
+  stored_keys = db.table('api_keys').select('*').eq('user_id', user.id).execute().data
+  
+  #Reconstruct full API keys
+  api_keys = []
+  for key_meta in stored_keys:
+      # Recreate the same user_data used in create_api_key
+      user_data = {
+          "user_id": user.id,
+          "email": user.email,
+          "is_guest": False,
+          "key_id": str(key_meta['key_id']),
+          "token_type": "api_key"
+      }
+      
+      # Encode with same algorithm to reconstruct the original key
+      encoded_key = jwt.encode(
+          user_data,
+          settings.SECRET_KEY,
+          algorithm="HS256"
+      )
+      
+      # Add both metadata and full key
+      api_keys.append(encoded_key)
+  
+  return api_keys
 
 async def verify_token(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> dict:
     """Verify JWT token and return user info with credits"""          
@@ -61,8 +100,27 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
         if not credentials:
           user = generate_guest_id(request)
         else:
-          user = db.auth.get_user(credentials.credentials)
+          decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
+            
+          # Check if token is API key
+          if decoded.get("token_type") == "api_key":
+              print("Got API key, verifying...")
+              user = {
+                      "id": decoded["user_id"],
+                      "email": decoded["email"],
+                      "email_verified": True  # API keys are only created for verified users
+                  }
+                  
+              # Verify key hasn't been revoked
+              key = db.table('api_keys').select('*').eq('key_id', decoded["key_id"]).is_('revoked_at', None).maybe_single().execute()
+              if not key:
+                  raise HTTPException(status_code=401, detail="API key has been revoked")
+          else:
+            user = db.auth.get_user(credentials.credentials)
+          
         user_id = user["id"]
+        if not user["email_verified"]:
+          raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox & spam")
         try:
           credits = db.table('credits').select('balance').eq('user_id', user_id).maybe_single().execute()
         except Exception as e:

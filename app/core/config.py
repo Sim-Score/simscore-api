@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     
     # Security
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
     
     # Rate Limiting
     GLOBAL_RATE_LIMIT: str

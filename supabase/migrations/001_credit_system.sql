@@ -16,7 +16,7 @@ create table credit_transactions (
   user_id uuid references auth.users(id),
   amount integer not null,
   operation_type text not null,
-  created_at timestamp with time zone default now(),
+  created_at timestamp with time zone default now()
 );
 
 -- RLS Policies
@@ -56,7 +56,7 @@ $$;
 create or replace function deduct_credits(
   p_user_id uuid,
   amount integer,
-  operation text,
+  operation text
 ) returns boolean
 language plpgsql security definer as $$
 declare
@@ -75,11 +75,11 @@ begin
     insert into credit_transactions (
       user_id,
       amount,
-      operation_type,
+      operation_type
     ) values (
       p_user_id,
       -amount,
-      operation,
+      operation
     );
     
     return true;
