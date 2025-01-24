@@ -15,7 +15,7 @@ from app.services.types import PlotData, Results, RankedIdea
 
 router = APIRouter(tags=["ideas"])
 
-@router.post("/rank-ideas", response_model=AnalysisResponse)
+@router.post("/rank_ideas", response_model=AnalysisResponse)
 @limiter.limit(settings.RATE_LIMIT_PER_USER)
 async def rank_ideas(
     request: Request,

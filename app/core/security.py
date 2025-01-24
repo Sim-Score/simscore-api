@@ -21,6 +21,16 @@ async def authenticate_user(email: str, password: str):
 
     return user
 
+async def verify_email_code(email: str, code: str):
+    try:
+        # Verify the code against stored verification code
+        db.auth.verify_otp({"email": email, "token": code, "type": "email"})
+        return True
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 async def create_user(email: str, password: str):
     session = db.auth.sign_up({
         "email": email,

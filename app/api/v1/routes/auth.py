@@ -1,73 +1,172 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from typing import List
+import app.core.security as backend
 
-from app.core.security import authenticate_user, create_user, create_api_key, list_api_keys, remove_api_key, verify_token
-from app.core.config import settings
-
-# Define the request body model
+# Request/Response Models
 class UserCredentials(BaseModel):
-    email: str
+    email: EmailStr  # More strict email validation
     password: str
+
+class SignupResponse(BaseModel):
+    message: str
+    email: EmailStr
+
+class ApiKeyResponse(BaseModel):
+    api_key: str
+
+class ApiKeysResponse(BaseModel):
+    api_keys: List[str]
+
+class MessageResponse(BaseModel):
+    message: str
+
+class CreditsResponse(BaseModel):
+    credits: float
+
+class EmailVerification(BaseModel):
+    email: EmailStr
+    code: str
 
 router = APIRouter(tags=["auth"])
 
-@router.post("/auth/sign_up")
-async def signup(credentials: UserCredentials):
-    try:
-        await create_user(credentials.email, credentials.password)
-        return {
-            "message": "Registration successful. Please check your email to verify your account.",
-            "email": credentials.email
-        }
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=400, detail=str(e))
+@router.post("/auth/sign_up", response_model=SignupResponse)
+async def signup(credentials: UserCredentials) -> SignupResponse:
+    """
+    Register a new user account.
     
-@router.post("/auth/create_api_key")
-async def api_key(credentials: UserCredentials):
+    Args:
+        credentials: User email and password
+        
+    Returns:
+        Registration confirmation message and email
+        
+    Raises:
+        HTTPException: 400 if registration fails
+    """
     try:
-        user = await authenticate_user(credentials.email, credentials.password)
-        api_key = create_api_key(user)
-        return {"api_key": api_key}
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.delete("/auth/revoke_api_key/{key}")
-async def delete_api_key(
-    key: str,
-    current_user: dict = Depends(verify_token)
-):
-    try:
-        await remove_api_key(current_user, key)
-        return {"message": "API key deleted"}
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/auth/api_keys")
-async def api_keys(credentials: UserCredentials):
-    """get a list of all active api keys for the user"""
-    try:
-        user = await authenticate_user(credentials.email, credentials.password)
-        print("User successfully authenticated")
-        keys = await list_api_keys(user)
-        print("Keys: ", keys) # Debug
-        return {"api_keys": keys}
+        await backend.create_user(credentials.email, credentials.password)
+        return SignupResponse(
+            message="Registration successful. Please check your email to verify your account.",
+            email=credentials.email
+        )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=400, detail=str(e))
       
-@router.get("/auth/credits")
-async def get_credits(current_user: dict = Depends(verify_token)):
-    """Get remaining credits for the authenticated user"""
+@router.post("/auth/verify_email", response_model=MessageResponse)
+async def verify_email(verification: EmailVerification) -> MessageResponse:
+    """
+    Verify user email with verification code.
+    
+    Args:
+        verification: Email and verification code
+        
+    Returns:
+        Confirmation message
+        
+    Raises:
+        HTTPException: 400 if verification fails
+    """
+    try:
+        await backend.verify_email_code(verification.email, verification.code)
+        return MessageResponse(message="Email successfully verified")
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/auth/create_api_key", response_model=ApiKeyResponse)
+async def api_key(credentials: UserCredentials) -> ApiKeyResponse:
+    """
+    Create a new API key for authenticated user.
+    
+    Args:
+        credentials: User email and password
+        
+    Returns:
+        Newly created API key
+        
+    Raises:
+        HTTPException: 400 if creation fails, 401 if authentication fails
+    """
+    try:
+        user = await backend.authenticate_user(credentials.email, credentials.password)
+        api_key = backend.create_api_key(user)
+        return ApiKeyResponse(api_key=api_key)
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/auth/revoke_api_key/{key}", response_model=MessageResponse)
+async def delete_api_key(
+    key: str,
+    current_user: dict = Depends(backend.verify_token)
+) -> MessageResponse:
+    """
+    Revoke a specific API key.
+    
+    Args:
+        key: API key to revoke
+        current_user: Authenticated user information
+        
+    Returns:
+        Confirmation message
+        
+    Raises:
+        HTTPException: 400 if deletion fails, 401 if unauthorized
+    """
+    try:
+        await backend.remove_api_key(current_user, key)
+        return MessageResponse(message="API key deleted")
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/auth/api_keys", response_model=ApiKeysResponse)
+async def api_keys(credentials: UserCredentials) -> ApiKeysResponse:
+    """
+    List all active API keys for the authenticated user.
+    
+    Args:
+        credentials: User email and password
+        
+    Returns:
+        List of active API keys
+        
+    Raises:
+        HTTPException: 400 if listing fails, 401 if authentication fails
+    """
+    try:
+        user = await backend.uthenticate_user(credentials.email, credentials.password)
+        keys = await backend.list_api_keys(user)
+        return ApiKeysResponse(api_keys=keys)
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/auth/credits", response_model=CreditsResponse)
+async def get_credits(current_user: dict = Depends(backend.verify_token)) -> CreditsResponse:
+    """
+    Get remaining credits for the authenticated user.
+    
+    Args:
+        current_user: Authenticated user information
+        
+    Returns:
+        Current credit balance
+        
+    Raises:
+        HTTPException: 400 if retrieval fails, 401 if unauthorized
+    """
     try:
         credits = current_user["balance"]
-        return {"credits": credits}
+        return CreditsResponse(credits=credits)
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e

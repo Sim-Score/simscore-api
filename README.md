@@ -20,7 +20,7 @@ API URL: https://simscore-api.fly.dev
 SimScore API can be used without authentication, allowing you to try out the basic features with a limited daily quota. Simply make requests without an Authorization header:
 
 ```bash
-curl -X POST "{{api-url}}/v1/rank-ideas" \
+curl -X POST "{{api-url}}/v1/rank_ideas" \
 -H "Content-Type: application/json" \
 -d '{
   "ideas": [
@@ -65,7 +65,27 @@ Get higher daily quotas by registering for an account. Registration is straightf
 
 Create an account:
 ```bash
-curl -X POST "{{api-url}}/v1/auth/signup" \
+curl -X POST "{{api-url}}/v1/auth/sign_up" \
+-H "Content-Type: application/json" \
+-d '{
+  "email": "your@email.com",
+  "password": "your_password"
+}'
+```
+This will send a verification email with a registration link and a one-time code.
+Click the link, or to use the code call 
+```bash
+curl -X POST "{{api-url}}/v1/auth/verify_email" \
+-H "Content-Type: application/json" \
+-d '{
+  "email": "your@email.com",
+  "code": "123456"
+}'
+```
+
+Last step is to create an API key:
+```bash
+curl -X POST "{{api-url}}/v1/auth/create_api_key" \
 -H "Content-Type: application/json" \
 -d '{
   "email": "your@email.com",
@@ -73,26 +93,34 @@ curl -X POST "{{api-url}}/v1/auth/signup" \
 }'
 ```
 
-This will return your bearer token:
+This will return your API key, which you can use as 'bearer token' for future API calls:
 
+```json
 {
-  "access_token": "your-bearer-token"
+  "api_key": "your-api-key"
 }
+```
 
-Once you have registered and need to access your token again, you can retrieve it with 
+Once you have registered and need to access your tokens again, you can retrieve it with 
 ```bash
-curl -X POST "{{api-url}}/v1/auth/login" \
+curl -X POST "{{api-url}}/v1/auth/api_keys" \
 -H "Content-Type: application/json" \
 -d '{
   "email": "your@email.com",
   "password": "your_password"
 }'
+```
+
+And to revoke keys:
+```bash
+curl -X DELETE "{{api-url}}/v1/auth/revoke_api_key/{your-api-key}" \
+-H "Authorization: Bearer {{your-bearer-token}}"
 ```
 
 Use your token in requests:
 ```bash
-curl -X POST "{{api-url}}/v1/rank-ideas" \
--H "Authorization: Bearer {{your-bearer-token here}}" \
+curl -X POST "{{api-url}}/v1/rank_ideas" \
+-H "Authorization: Bearer {{your API Key here}}" \
 -H "Content-Type: application/json" \
 -d '{"ideas": [...]}'
 ```
@@ -103,7 +131,7 @@ Need higher limits? Contact the maintainer for custom quotas tailored to your ne
 
 ### Advanced Analysis
 ```bash
-curl -X POST "{{api-url}}/v1/rank-ideas" \
+curl -X POST "{{api-url}}/v1/rank_ideas" \
 -H "Authorization: Bearer [your-bearer-token here]" \
 -H "Content-Type: application/json" \
 -d '{
@@ -180,6 +208,44 @@ curl -X POST "{{api-url}}/v1/rank-ideas" \
 }
 ```
 
-### Limits
+
+## Limits
+The quality & amount of API calls you can make depends on multiple factors:
+* Hard limits
+* Credits (Daily Quota)
+* Fair usage
+
+### Hard Limits
+These are limits for the type of data you can submit. 
+Anything outside of these parameters will be rejected:
+
 * At least 4 ideas need to be submitted in order for the analysis to run successful
 * A maxiumum of 10'000 ideas or 10mb of data (whichever is smaller) will be enforced. Should you require higher limits, please get in touch. 
+
+### Credits
+Every API call will use up a certain amount of credits, depending on how much compute it uses.
+both the credits used as well as the daily amount of free credits remain subject to change based on availability & demand. 
+You can get a daily amount of credits without registering, or a higher amount after registering as a user.
+To see the remaining amount of credits:
+
+```bash
+curl -X GET "{{api-url}}/v1/auth/credits" \
+-H "Authorization: Bearer {{your-bearer-token}}"
+```
+
+### Fair usage
+To ensure fair access for all users, the following rate limits apply:
+
+* Guest users:
+  * 10 credits per day
+  * Maximum of 100 total credits
+  * 20 requests per minute
+
+* Registered users:
+  * 100 credits per day  
+  * Maximum of 1000 total credits
+  * 20 requests per minute
+
+* Global limit of 1000 requests per minute across all users
+
+Exceeding these limits will result in HTTP 429 (Too Many Requests) responses. If you need higher limits, please contact us to discuss enterprise options.
