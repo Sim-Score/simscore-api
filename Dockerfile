@@ -10,7 +10,7 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 COPY . .
 
-RUN poetry install
+RUN poetry install --no-root
 
 FROM python:3.12-slim
 
