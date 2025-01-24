@@ -249,3 +249,31 @@ To ensure fair access for all users, the following rate limits apply:
 * Global limit of 1000 requests per minute across all users
 
 Exceeding these limits will result in HTTP 429 (Too Many Requests) responses. If you need higher limits, please contact us to discuss enterprise options.
+
+
+## Local Development
+
+1. Install dependencies:
+
+`poetry install --no-root`
+
+
+2. Add new dependencies as needed:
+
+`poetry add <package-name>`
+
+
+3. Start local Supabase:
+
+`supabase start`
+
+
+4. Run fastapi:
+
+`fastapi dev`
+
+
+5. For local email verification:
+   - Run `supabase status` to see the Inbucket URL
+   - Open Inbucket in your browser to view sent emails
+   - Default URL is usually: http://localhost:54324
