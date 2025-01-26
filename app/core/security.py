@@ -125,10 +125,10 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
                       "email_verified": True  # API keys are only created for verified users
                   }
                   
-              # Verify key hasn't been revoked
-              key = db.table('api_keys').select('*').eq('key_id', decoded["key_id"]).is_('revoked_at', None).maybe_single().execute()
+              # Verify key hasn't been removed
+              key = db.table('api_keys').select('*').eq('key_id', decoded["key_id"]).maybe_single().execute()
               if not key:
-                  raise HTTPException(status_code=401, detail="API key has been revoked")
+                  raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
           else:
             user = db.auth.get_user(credentials.credentials)
           
