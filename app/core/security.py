@@ -47,21 +47,6 @@ async def create_user(email: str, password: str):
     })
     
     
-    user = session.user
-    
-    db.table('credits').insert({
-        'user_id': user.id,
-        'balance': settings.USER_DAILY_CREDITS  # starting balance for registered users
-    }).execute()
-
-
-    user = session.user
-    
-    db.table('credits').insert({
-        'user_id': user.id,
-        'balance': settings.USER_DAILY_CREDITS  # starting balance for registered users
-    }).execute()
-
 def create_api_key(user) -> str:
     """Create JWT token for API authentication"""
   
