@@ -142,7 +142,7 @@ async def api_keys(credentials: UserCredentials) -> ApiKeysResponse:
         HTTPException: 400 if listing fails, 401 if authentication fails
     """
     try:
-        user = await backend.uthenticate_user(credentials.email, credentials.password)
+        user = await backend.authenticate_user(credentials.email, credentials.password)
         keys = await backend.list_api_keys(user)
         return ApiKeysResponse(api_keys=keys)
     except Exception as e:
