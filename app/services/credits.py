@@ -50,7 +50,7 @@ class CreditService:
         """Refresh daily credits for all users"""
         # Get users needing refresh
         users = db.table('credits').select('*').lt(
-            'last_free_credit_reset', 
+            'last_free_credit_update', 
             datetime.now() - timedelta(days=1)
         ).execute()
         
@@ -69,5 +69,5 @@ class CreditService:
               )    
             db.table('credits').update({
                 'balance': new_balance,
-                'last_free_credit_reset': datetime.now()
+                'last_free_credit_update': datetime.now()
             }).eq('user_id', user['user_id']).execute()

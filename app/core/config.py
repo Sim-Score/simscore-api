@@ -20,18 +20,12 @@ class Settings(BaseSettings):
     GLOBAL_RATE_LIMIT: str
     RATE_LIMIT_PER_USER: str
     
-    # MongoDB settings if we use it
-    MONGODB_URI: str
-    
     # OpenAI if used:
     OPENAI_API_KEY: str
     
     # Supabase postgres db settings
     DATABASE_URL: str
-    DATABASE_POOLER_URL: str
     DATABASE_KEY: str
-    DATABASE_PROJECT_URL: str
-    SUPABASE_SERVICE_ROLE_KEY: str
     
     OPERATION_COSTS: Dict[str, OperationCost] = {
         "basic_analysis": {

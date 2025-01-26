@@ -19,6 +19,15 @@ async def authenticate_user(email: str, password: str):
     if not user.user_metadata["email_verified"]:
         raise HTTPException(status_code=401, detail="Email not verified. Please check your inpox & spam")
 
+    # Check if user has credits entry
+    credits = db.table('credits').select('*').eq('user_id', user.id).execute()
+    if not credits.data:
+        # Create initial credits entry if none exists
+        db.table('credits').insert({
+            'user_id': user.id,
+            'balance': settings.USER_DAILY_CREDITS  # starting balance for registered users
+        }).execute()
+    
     return user
 
 async def verify_email_code(email: str, code: str):
@@ -32,11 +41,20 @@ async def verify_email_code(email: str, code: str):
 
 
 async def create_user(email: str, password: str):
-    session = db.auth.sign_up({
+    db.auth.sign_up({
         "email": email,
         "password": password
     })
     
+    
+    user = session.user
+    
+    db.table('credits').insert({
+        'user_id': user.id,
+        'balance': settings.USER_DAILY_CREDITS  # starting balance for registered users
+    }).execute()
+
+
     user = session.user
     
     db.table('credits').insert({
@@ -159,7 +177,7 @@ def setup_guest(data: dict):
         'password': 'temporary',  # Or generate random password
     })
     with_expiry = data.copy()
-    with_expiry.update({"last_free_credit_reset": datetime.now().isoformat()}) 
+    with_expiry.update({"last_free_credit_update": datetime.now().isoformat()}) 
     db.table('credits').insert(with_expiry).execute()
     
 def generate_guest_id(request: Request) -> dict:

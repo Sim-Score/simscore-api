@@ -6,7 +6,7 @@ create table credits (
   user_id uuid references auth.users(id),
   is_guest boolean,
   balance integer not null default 0,
-  last_free_credit_reset timestamp with time zone,
+  last_free_credit_update timestamp with time zone,
   primary key (user_id)
 );
 
@@ -53,12 +53,12 @@ end;
 $$;
 
 -- Function to deduct credits
-create or replace function deduct_credits(
+create or replace function public.deduct_credits(
   p_user_id uuid,
   amount integer,
   operation text
 ) returns boolean
-language plpgsql security definer as $$
+language plpgsql security invoker set search_path = 'public' as $$
 declare
   current_balance integer;
 begin
