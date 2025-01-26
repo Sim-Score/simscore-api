@@ -19,15 +19,16 @@ async def authenticate_user(email: str, password: str):
     if not user.user_metadata["email_verified"]:
         raise HTTPException(status_code=401, detail="Email not verified. Please check your inpox & spam")
 
+    print("User authenticated:", user)
     # Check if user has credits entry
     credits = db.table('credits').select('*').eq('user_id', user.id).execute()
+    print("User credits:", credits.data)
     if not credits.data:
         # Create initial credits entry if none exists
-        db.table('credits').insert({
-            'user_id': user.id,
-            'balance': settings.USER_DAILY_CREDITS  # starting balance for registered users
-        }).execute()
-    
+        db.rpc('add_credits', {
+            'p_user_id': user.id,
+            'amount': settings.USER_DAILY_CREDITS
+        }).execute()    
     return user
 
 async def verify_email_code(email: str, code: str):
