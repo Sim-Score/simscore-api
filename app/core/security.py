@@ -10,6 +10,12 @@ from .config import settings
 
 security = HTTPBearer(auto_error=False) # Authentication is optional!
 
+async def create_user(email: str, password: str):
+    db.auth.sign_up({
+        "email": email,
+        "password": password
+    })
+    
 async def authenticate_user(email: str, password: str):
     session = db.auth.sign_in_with_password({
         "email": email,
@@ -20,13 +26,15 @@ async def authenticate_user(email: str, password: str):
         raise HTTPException(status_code=401, detail="Email not verified. Please check your inpox & spam")
 
     print("User authenticated:", user)
+    user_id = user.id
+    print("User ID:", user_id)
     # Check if user has credits entry
     credits = db.table('credits').select('*').eq('user_id', user.id).execute()
     print("User credits:", credits.data)
     if not credits.data:
         # Create initial credits entry if none exists
         db.rpc('add_credits', {
-            'p_user_id': user.id,
+            'p_user_id': user_id,
             'amount': settings.USER_DAILY_CREDITS
         }).execute()    
     return user
@@ -39,14 +47,6 @@ async def verify_email_code(email: str, code: str):
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-async def create_user(email: str, password: str):
-    db.auth.sign_up({
-        "email": email,
-        "password": password
-    })
-    
     
 def create_api_key(user) -> str:
     """Create JWT token for API authentication"""
@@ -112,7 +112,9 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
     """Verify JWT token and return user info with credits"""          
     try:
         if not credentials:
+          print("No credentials supplied, continuing as guest...")
           user = generate_guest_id(request)
+          user["email_verified"] = True
         else:
           decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
             
@@ -124,15 +126,15 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
                       "email": decoded["email"],
                       "email_verified": True  # API keys are only created for verified users
                   }
-                  
+              print("User data:", user)
+              key_id = decoded["key_id"]
+              print("Key: ", key_id)
               # Verify key hasn't been removed
-              results = db.table('api_keys').select('*').eq('key_id', decoded["key_id"]).execute()
-              print("Query results:", results.data)
-              if results.data:
+              results = db.table("api_keys").select('*').eq('key_id', key_id).execute()
+              print("Query results:", results)
+              if results.data and results.data[0]:
                 key = results.data[0]
                 print("Key data:", key)
-                key_using_maybe_results = results.maybe_single()
-                print("Key using maybe:", key_using_maybe_results)
               if not key:
                   raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
           else:
@@ -142,8 +144,11 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
         if not user["email_verified"]:
           raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox & spam")
         try:
-          credits = db.table('credits').select('balance').eq('user_id', user_id).maybe_single().execute()
+          print("getting credits for user:", user_id)
+          query = db.table('credits').select('balance').eq('user_id', user_id)
+          credits = query.maybe_single().execute()
         except Exception as e:
+          print('Exception getting credits:', str(e))
           if not credentials: 
             # if the user is not in the credits table, create it with the daily credit amount
             init_guest_data = {
