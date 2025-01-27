@@ -143,16 +143,15 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
         user_id = user["id"]
         if not user["email_verified"]:
           raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox & spam")
-        try:
-          print("getting credits for user:", user_id)
-          query = db.table('credits').select('balance').eq('user_id', user_id)
-          credits = query.maybe_single().execute()
-        except Exception as e:
-          print('Exception getting credits:', str(e))
-          if not credentials: 
-            # if the user is not in the credits table, create it with the daily credit amount
+        print("getting credits for user:", user_id)
+        query = db.table('credits').select('balance').eq('user_id', user_id)
+        credits = query.maybe_single().execute()
+        print("Credits:", credits)
+        if credits == None:            
+          print(f"No credits yet for {user_id if credentials else 'anonymous user'}. Creating...")
+          if not credentials:             # if the guest is not in the credits table, create it with the daily credit amount
             init_guest_data = {
-              "user_id": id, 
+              "user_id": user_id, 
               "is_guest": True, 
               "balance": settings.GUEST_DAILY_CREDITS
             }
