@@ -9,7 +9,7 @@ from app.services.credits import CreditService
 from ..dependencies.auth import verify_token
 
 from ....services.analyzer import centroid_analysis
-from ..models.request import IdeaRequest
+from ..models.request import IdeaInput, IdeaRequest
 from ..models.response import AnalysisResponse, RelationshipGraph
 from app.services.types import PlotData, Results, RankedIdea
 
@@ -79,10 +79,11 @@ async def rank_ideas(
         )
     
     # Perform core analysis
+    print('Starting analysis for ideas: \n', ideaRequest)
     results, plot_data = centroid_analysis(ideas)
     await CreditService.deduct_credits(user_id, "basic_analysis", num_ideas, total_bytes)
 
-    response = await build_base_response(ideas, results, plot_data)
+    response = await build_base_response(ideas, results, plot_data, ideaRequest.ideas)
 
     if ideaRequest.advanced_features:
         response = await process_advanced_features(
@@ -123,11 +124,14 @@ def _generate_edges(ranked_ideas: List[RankedIdea], similarity_matrix: List[List
     
     return edges
 
-async def build_base_response(ideas: List[str], results: Results, plot_data: PlotData) -> dict:
+async def build_base_response(ideas: List[str], results: Results, plot_data: PlotData, idea_inputs: List[IdeaInput]) -> dict:
     """Build base response with ranked ideas and similarity scores"""
+    # Create lookup dict from idea string to original input
+    idea_to_input = {input.idea: input for input in idea_inputs}
+    
     ranked_ideas = [
         RankedIdea(
-            id=str(idx),
+            id=str(idea_to_input[idea].id) if idea_to_input[idea].id is not None else str(idx),
             idea=idea,
             similarity_score=results["similarity"][idx],
             cluster_id=plot_data["kmeans_data"]["cluster"][idx],
