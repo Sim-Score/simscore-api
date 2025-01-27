@@ -165,7 +165,7 @@ async def process_advanced_features(
         CreditService.deduct_credits(user_id, "cluster_names", num_ideas, total_bytes)
            
     if request.advanced_features.pairwise_similarity_matrix:
-        response["pairwise_similarity_matrix"] = plot_data.pairwise_similarity
+        response["pairwise_similarity_matrix"] = plot_data["pairwise_similarity"]
         
     return response
 
@@ -176,7 +176,7 @@ def build_relationship_graph(ranked_ideas: List[RankedIdea], plot_data: PlotData
     - Edges showing similarity between ideas
     - Centroid connections
     """
-    coords = plot_data.scatter_points
+    coords = plot_data["scatter_points"]
     
     # Create nodes including centroid
     nodes = [
@@ -198,6 +198,6 @@ def build_relationship_graph(ranked_ideas: List[RankedIdea], plot_data: PlotData
     })
     
     # Generate edges between ideas and to centroid
-    edges = _generate_edges(ranked_ideas, plot_data.pairwise_similarity)
+    edges = _generate_edges(ranked_ideas, plot_data["pairwise_similarity"])
     
     return RelationshipGraph(nodes=nodes, edges=edges)
