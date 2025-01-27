@@ -126,7 +126,13 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
                   }
                   
               # Verify key hasn't been removed
-              key = db.table('api_keys').select('*').eq('key_id', decoded["key_id"]).maybe_single().execute()
+              results = db.table('api_keys').select('*').eq('key_id', decoded["key_id"]).execute()
+              print("Query results:", results.data)
+              if results.data:
+                key = results.data[0]
+                print("Key data:", key)
+                key_using_maybe_results = results.maybe_single()
+                print("Key using maybe:", key_using_maybe_results)
               if not key:
                   raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
           else:
