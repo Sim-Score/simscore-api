@@ -1,20 +1,17 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List
 from openai import OpenAI
-import os
-from dataclasses import dataclass, asdict
 
 from app.core.config import settings
 from app.services.types import ClusterName, RankedIdea
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
 async def summarize_clusters(ranked_ideas: List[RankedIdea]) -> List[ClusterName]:
     
     print("Summarizing clusters")
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
     vectordb = Chroma(embedding_function=embeddings)
     
     # Add all ideas at once with metadata

@@ -17,10 +17,12 @@ async def create_user(email: str, password: str):
     })
     
 async def authenticate_user(email: str, password: str):
+    print("Auth'ing")
     session = db.auth.sign_in_with_password({
         "email": email,
         "password": password
     })
+    print("Auth'ed")
     user = session.user
     if not user.user_metadata["email_verified"]:
         raise HTTPException(status_code=401, detail="Email not verified. Please check your inpox & spam")
