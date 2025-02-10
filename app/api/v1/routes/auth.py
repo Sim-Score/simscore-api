@@ -79,7 +79,7 @@ async def verify_email(verification: EmailVerification) -> MessageResponse:
 
 
 @router.post("/auth/create_api_key", response_model=ApiKeyResponse)
-async def api_key(credentials: UserCredentials) -> ApiKeyResponse:
+async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
     """
     Create a new API key for authenticated user.
     

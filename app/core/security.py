@@ -84,17 +84,17 @@ async def remove_api_key(user, key):
   db.table('api_keys').delete().eq('key_id', key_id).eq('user_id', user["user_id"]).execute()
 
 async def list_api_keys(user):
-  stored_keys = db.table('api_keys').select('*').eq('user_id', user.id).execute().data
-  
+  stored_keys = [key["key_id"] for key in db.table('api_keys').select('key_id').eq('user_id', user.id).execute().data]  
+
   #Reconstruct full API keys
   api_keys = []
-  for key_meta in stored_keys:
+  for key_id in stored_keys:
       # Recreate the same user_data used in create_api_key
       user_data = {
           "user_id": user.id,
           "email": user.email,
           "is_guest": False,
-          "key_id": str(key_meta['key_id']),
+          "key_id": str(key_id),
           "token_type": "api_key"
       }
       
@@ -118,8 +118,8 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
           user = generate_guest_id(request)
           user["email_verified"] = True
         else:
+          print("Credentials supplied, decoding token: ", credentials)
           decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
-            
           # Check if token is API key
           if decoded.get("token_type") == "api_key":
               print("Got API key, verifying...")
@@ -128,15 +128,11 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
                       "email": decoded["email"],
                       "email_verified": True  # API keys are only created for verified users
                   }
-              print("User data:", user)
               key_id = decoded["key_id"]
-              print("Key: ", key_id)
               # Verify key hasn't been removed
               results = db.table("api_keys").select('*').eq('key_id', key_id).execute()
-              print("Query results:", results)
               if results.data and results.data[0]:
                 key = results.data[0]
-                print("Key data:", key)
               if not key:
                   raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
           else:
@@ -151,7 +147,7 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
         print("Credits:", credits)
         if credits == None:            
           print(f"No credits yet for {user_id if credentials else 'anonymous user'}. Creating...")
-          if not credentials:             # if the guest is not in the credits table, create it with the daily credit amount
+          if not credentials: # if the guest is not in the credits table, create it with the daily credit amount
             init_guest_data = {
               "user_id": user_id, 
               "is_guest": True, 
@@ -165,6 +161,7 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
             "balance": credits.data['balance']
         } 
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=401, detail=f"Invalid authentication: {str(e)}")
 
 def setup_guest(data: dict):  
@@ -172,7 +169,7 @@ def setup_guest(data: dict):
     db.auth.admin.create_user({
         'id': id,
         'email': f'guest_{id}@temporary.com',
-        'password': 'temporary',  # Or generate random password
+        'password': 'temporary',  # Or generate random password; doesn't matter, does it?
     })
     with_expiry = data.copy()
     with_expiry.update({"last_free_credit_update": datetime.now().isoformat()}) 

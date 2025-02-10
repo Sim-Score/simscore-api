@@ -13,10 +13,15 @@ class CreditService:
     @staticmethod
     async def has_sufficient_credits(user_id: str, operations: List[str], num_ideas: int, bytes: int) -> bool:
         """Check if user has enough credits for all requested operations"""
-        costs = [await CreditService.get_operation_cost(operation, num_ideas, bytes) for operation in operations]
-        total_cost = sum(costs)
+        total_cost = await CreditService.get_total_cost(operations, num_ideas, bytes)
         current_balance = await CreditService.get_credits(user_id)
         return current_balance >= total_cost
+
+    @staticmethod
+    async def get_total_cost(operations, num_ideas, bytes):
+        costs = [await CreditService.get_operation_cost(operation, num_ideas, bytes) for operation in operations]
+        total_cost = sum(costs)
+        return total_cost   
     
     @staticmethod
     async def get_credits(user_id: str) -> int:
@@ -43,8 +48,13 @@ class CreditService:
     async def get_operation_cost(operation: str, data_size: int, bytes: int) -> int:
         """Calculate credit cost based on operation type and data size"""
         cost_config = settings.OPERATION_COSTS[operation]
-        return cost_config["base_cost"] + (data_size // 100 * cost_config["per_hundred_items"]) + (bytes // 1024 * cost_config["per_kilobyte"])
-      
+        base_cost = cost_config["base_cost"]
+        item_cost = data_size / 100 * cost_config["per_hundred_items"]
+        byte_cost = bytes / 1024 * cost_config["per_kilobyte"]
+        total_cost = int(base_cost + item_cost + byte_cost) # Sum + round it down to next full integer
+        print(f"Cost for {operation}: {base_cost} + {item_cost} + {byte_cost} = {total_cost}") 
+        return total_cost
+
     @staticmethod
     async def refresh_daily_credits():
         """Refresh daily credits for all users"""

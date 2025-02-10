@@ -73,9 +73,12 @@ async def rank_ideas(
     if not await CreditService.has_sufficient_credits(
         user_id, operations, num_ideas, total_bytes
     ):
+        required = await CreditService.get_total_cost(operations, num_ideas, total_bytes)
+        available = await CreditService.get_credits(user_id)
+        print(f"Insufficient credits. Required: {required}; Available: {available}")
         raise HTTPException(
             status_code=402,
-            detail=f"Insufficient credits for analysis. Available credits: {await CreditService.get_credits(user_id)}"
+            detail=f"Insufficient credits for analysis. Required credits: {required}; Available credits: {available}"
         )
     
     # Perform core analysis

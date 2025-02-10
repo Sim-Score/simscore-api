@@ -2,9 +2,9 @@ from pydantic_settings import SettingsConfigDict, BaseSettings
 from typing import Dict, TypedDict
 
 class OperationCost(TypedDict):
-    base_cost: int
-    per_hundred_items: int
-    per_kilobyte: int
+    base_cost: float
+    per_hundred_items: float
+    per_kilobyte: float
 
 class Settings(BaseSettings):
     PROJECT_NAME: str
@@ -32,17 +32,17 @@ class Settings(BaseSettings):
         "basic_analysis": {
             "base_cost": 1,
             "per_hundred_items": 1,
-            "per_kilobyte": 1
+            "per_kilobyte": 0.1
         },
         "relationship_graph": {
             "base_cost": 3,
             "per_hundred_items": 2,
-            "per_kilobyte": 1
+            "per_kilobyte": 0.1
         },
         "cluster_names": {
             "base_cost": 3,
             "per_hundred_items": 1,
-            "per_kilobyte": 1
+            "per_kilobyte": 0.1
         }
     }
     
