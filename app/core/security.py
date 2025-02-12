@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import traceback
 from typing import Optional
 from uuid import UUID, uuid4
 from jose import jwt
@@ -171,7 +172,8 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
             "balance": balance
         } 
     except Exception as e:
-        print(e)
+        print("Error: Something went wrong while verifying the token: ", e)
+        traceback.print_exc()        
         raise HTTPException(status_code=401, detail=f"Invalid authentication: {str(e)}")
 
 def setup_guest(data: dict):  

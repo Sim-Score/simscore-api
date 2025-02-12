@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 from fastapi import Request
 from app.core.security import db
@@ -65,17 +65,24 @@ class CreditService:
         credits = db.table('credits').select('*').eq('user_id', user_id).maybe_single().execute()
         if not credits.data:
           return 0
+
+      daily_amount = settings.GUEST_DAILY_CREDITS if is_guest else settings.USER_DAILY_CREDITS
+      max_credits = settings.GUEST_MAX_CREDITS if is_guest else settings.USER_MAX_CREDITS
         
-      last_update = datetime.fromisoformat(credits.data['last_free_credit_update'])
-      days_elapsed = (datetime.now() - last_update).days
+      if not credits.data['last_free_credit_update']: 
+        # Update credits
+        db.table('credits').update({
+            'balance': max_credits,
+            'last_free_credit_update': datetime.now().isoformat()
+        }).eq('user_id', user_id).execute()
+        return max_credits
       
+      last_update = datetime.fromisoformat(credits.data['last_free_credit_update'])
+      days_elapsed = (datetime.now(timezone.utc) - last_update).days      
       if days_elapsed < 1:
         return credits.data['balance']
           
       # Calculate credits to add for elapsed days
-      daily_amount = settings.GUEST_DAILY_CREDITS if is_guest else settings.USER_DAILY_CREDITS
-      max_credits = settings.GUEST_MAX_CREDITS if is_guest else settings.USER_MAX_CREDITS
-      
       new_balance = min(
           credits.data['balance'] + (daily_amount * days_elapsed),
           max_credits
