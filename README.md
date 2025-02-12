@@ -254,27 +254,78 @@ Exceeding these limits will result in HTTP 429 (Too Many Requests) responses. If
 
 ## Local Development
 
-1. Install dependencies:
+1. Install dependencies with poetry:
 
 `poetry install --no-root`
 
+By default, this will have created a python virtual environment, make sure to use that environment (see 'Troubleshooting') before continuing; e.g.
 
-2. Add new dependencies as needed:
-
-`poetry add <package-name>`
+`poetry shell`
 
 
-3. Start local Supabase:
+2. Start local Supabase:
 
 `supabase start`
 
 
-4. Run fastapi:
+3. Run fastapi:
 
 `fastapi dev`
+
+
+4. During development, add new dependencies as needed with poetry:
+
+`poetry add <package-name>`
 
 
 5. For local email verification:
    - Run `supabase status` to see the Inbucket URL
    - Open Inbucket in your browser to view sent emails
    - Default URL is usually: http://localhost:54324
+
+
+### Troubleshooting
+
+#### How to manage poetry environments
+
+Poetry's configuration can be checked with `poetry config --list`; this command will show you whether & where poetry creates virtual environments; e.g. 
+
+```
+...
+virtualenvs.create = true
+virtualenvs.in-project = true
+...
+```
+
+I like to have a local environment in my project, but global should also work.
+
+Whatever it is, make sure you switch to that environment so that you're actually using the poetry-installed dependencies.
+You can do that with `eval $(poetry env activate)`. To see where your environment is created, check with `poetry env info`
+
+Alternatively if you don't want to use poetry you can also install all the required packages (see `pyproject.toml`) in your favorite way; but that comes without support.
+
+#### FastAPI errors
+
+A common source of errors with FastAPI is if there are some environment variables missing in your `.env` file, or you've added some into `.env` that are not specified in `app/core/config.py`. 
+Make sure those two are always in sync.
+
+We've provided a `.env.sample` file that you should rename (to `.env` or `.env.local` or whichever environment flavour you need) and fill out.
+
+#### Supabase
+
+Supabase manages users and their credits & API keys. 
+If you have trouble running supabase locally with `supabase start`: 
+
+* Make sure you have docker installed and that the daemon is running: `systemctl status docker`
+* You might not be added to the right group: 
+
+`sudo usermod -aG docker $USER`
+
+After running this command, you'll need to either:
+   - Log out and log back in (computer, not shell); or 
+   - Activate in your current shell without restart: `newgrp docker` (this will spawn a new sub-shell)
+
+This often helps to run supabase.
+
+Then, to work with it locally, you can access the local instance's info with `supabase status` and use those to manage it (and e.g. set .env vars).
+The **Studio URL** gives you a graphical interface to supabase, and with **Inbucket URL** is a local email smtp server where you can test email signup.

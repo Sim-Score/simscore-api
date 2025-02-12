@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     
     # List all published versions here. This enables us to manage them better; i.e. gradually phase them out etc...
     API_V1_STR: str
-    API_V0_STR: str
     
     # Security
     SECRET_KEY: str
