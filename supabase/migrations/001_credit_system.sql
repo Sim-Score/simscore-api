@@ -37,13 +37,11 @@ create or replace function add_credits(
 ) returns void
 language plpgsql security definer as $$
 begin
-  insert into credits (user_id, balance, last_free_credit_update)
-  values (p_user_id, amount, now())
+  insert into credits (user_id, balance)
+  values (p_user_id, amount)
   on conflict (user_id) do update
-  set 
-    balance = credits.balance + amount,
-    last_free_credit_update = now();
-
+  set balance = credits.balance + amount;
+  
   insert into credit_transactions (
     user_id,
     amount,
