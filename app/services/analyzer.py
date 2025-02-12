@@ -27,12 +27,12 @@ def init_nltk_resources():
     cache_file = os.path.join(os.path.dirname(__file__), '.nltk_resources_cache')
     current_time = time.time()
 
-    # Check if cache file exists and is less than 24 hours old
+    # Check if cache file exists and is less than a week old
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as f:
             last_execution = float(f.read().strip())
-        if current_time - last_execution < 86400:  # 86400 seconds = 24 hours
-            print("NLTK resources already initialized within the last 24 hours.")
+        if current_time - last_execution < 86400 * 7:  # 86400 seconds = 24 hours
+            print("NLTK resources already initialized within the last week.")
             return
 
     print("Initializing NLTK resources...")

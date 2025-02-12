@@ -4,8 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from app.core.config import settings
-from contextlib import asynccontextmanager
-from app.core.scheduler import init_schedulers, scheduler
 
 from app.services.analyzer import init_nltk_resources
 import app.api.v1.routes as v1
@@ -15,19 +13,9 @@ from dotenv import load_dotenv
 os.environ.clear()
 load_dotenv(override=True)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    init_schedulers()
-    init_nltk_resources()
-    yield
-    # Shutdown
-    scheduler.shutdown()
-
 # Main app for requests at the base url. This will serve documentation etc, but all API endpoints must go to a versioned one.
 app = FastAPI(
-  title=settings.PROJECT_NAME,
-  lifespan=lifespan,
+  title=settings.PROJECT_NAME
 )
 
 ### V1 ###
@@ -59,5 +47,7 @@ app.add_middleware(CORSMiddleware,
                    allow_methods=ACCESS_CONTROL_ALLOW_METHODS,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
+
+init_nltk_resources()
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

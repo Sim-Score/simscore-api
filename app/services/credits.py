@@ -56,28 +56,35 @@ class CreditService:
         return total_cost
 
     @staticmethod
-    async def refresh_daily_credits():
-        """Refresh daily credits for all users"""
-        # Get users needing refresh
-        users = db.table('credits').select('*').lt(
-            'last_free_credit_update', 
-            datetime.now() - timedelta(days=1)
-        ).execute()
+    async def refresh_user_credits(user_id: str, is_guest: bool, credits: dict) -> int:
+      """
+      Refresh user credits based on days elapsed since last update
+      Returns new balance
+      """          
+      if not credits:
+        credits = db.table('credits').select('*').eq('user_id', user_id).maybe_single().execute()
+        if not credits.data:
+          return 0
         
-        for user in users.data:
-            if not user.get('is_guest'):
-              if user['balance'] >= settings.USER_MAX_CREDITS:
-                continue  # The user has paid for more balance, don't change it.
-              new_balance = min(
-                  user['balance'] + settings.USER_DAILY_CREDITS,
-                  settings.MAX_CREDIT_BALANCE
-              )
-            else:
-              new_balance = min(
-                  user['balance'] + settings.GUEST_DAILY_CREDITS,
-                  settings.GUEST_MAX_CREDITS
-              )    
-            db.table('credits').update({
-                'balance': new_balance,
-                'last_free_credit_update': datetime.now()
-            }).eq('user_id', user['user_id']).execute()
+      last_update = datetime.fromisoformat(credits.data['last_free_credit_update'])
+      days_elapsed = (datetime.now() - last_update).days
+      
+      if days_elapsed < 1:
+        return credits.data['balance']
+          
+      # Calculate credits to add for elapsed days
+      daily_amount = settings.GUEST_DAILY_CREDITS if is_guest else settings.USER_DAILY_CREDITS
+      max_credits = settings.GUEST_MAX_CREDITS if is_guest else settings.USER_MAX_CREDITS
+      
+      new_balance = min(
+          credits.data['balance'] + (daily_amount * days_elapsed),
+          max_credits
+      )
+      
+      # Update credits
+      db.table('credits').update({
+          'balance': new_balance,
+          'last_free_credit_update': datetime.now().isoformat()
+      }).eq('user_id', user_id).execute()
+      
+      return new_balance

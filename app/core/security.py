@@ -37,7 +37,7 @@ async def authenticate_user(email: str, password: str):
         # Create initial credits entry if none exists
         db.rpc('add_credits', {
             'p_user_id': user_id,
-            'amount': settings.USER_DAILY_CREDITS
+            'amount': settings.USER_MAX_CREDITS
         }).execute()    
     return user
 
@@ -113,7 +113,8 @@ async def list_api_keys(user):
 async def verify_token(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> dict:
     """Verify JWT token and return user info with credits"""          
     try:
-        if not credentials:
+        is_guest = not credentials
+        if is_guest:
           print("No credentials supplied, continuing as guest...")
           user = generate_guest_id(request)
           user["email_verified"] = True
@@ -142,23 +143,32 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
         if not user["email_verified"]:
           raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox & spam")
         print("getting credits for user:", user_id)
-        query = db.table('credits').select('balance').eq('user_id', user_id)
-        credits = query.maybe_single().execute()
+        credits = db.table('credits').select('*').eq('user_id', user_id).maybe_single().execute()
         print("Credits:", credits)
-        if credits == None:            
+        if not credits.data:            
           print(f"No credits yet for {user_id if credentials else 'anonymous user'}. Creating...")
-          if not credentials: # if the guest is not in the credits table, create it with the daily credit amount
+          if is_guest: # if the guest is not in the credits table, create it with the max credit amount
             init_guest_data = {
               "user_id": user_id, 
               "is_guest": True, 
-              "balance": settings.GUEST_DAILY_CREDITS
+              "balance": settings.GUEST_MAX_CREDITS
             }
             setup_guest(init_guest_data)
             return init_guest_data
+          else:
+            # Should we fail here or handle it gracefully? Let's not fail for now.
+            print("Error: Existing user doesn't exist in credits table. This really shouldn't be happening... Creating it now.")
+            db.rpc('add_credits', {
+                'p_user_id': user_id,
+                'amount': settings.USER_MAX_CREDITS
+            }).execute()  
+            
+        from app.services.credits import CreditService
+        balance = await CreditService.refresh_user_credits(user_id, is_guest, credits)        
         return {
             "user_id": user_id,
-            "is_guest": True if not credentials else False,
-            "balance": credits.data['balance']
+            "is_guest": is_guest,
+            "balance": balance
         } 
     except Exception as e:
         print(e)
