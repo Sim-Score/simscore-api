@@ -1,34 +1,44 @@
 import pytest
 from fastapi.testclient import TestClient
+from fastapi import FastAPI, Depends
 from app.api.v1.routes.ideas import router
 from app.api.v1.models.request import IdeaRequest, AdvancedFeatures
 from app.api.v1.models.response import AnalysisResponse, RankedIdea
-from fastapi import FastAPI
 from app.core.limiter import limiter
 from app.core.config import settings
 import json
 from slowapi.errors import RateLimitExceeded
+from app.api.v1.dependencies.auth import verify_token
+from tests.conftest import auth_headers, mock_verify_token
 
 app = FastAPI()
-app.include_router(router)
+app.include_router(router, dependencies=[Depends(verify_token)])
 client = TestClient(app)
 
 @pytest.fixture
 def valid_token():
     return "valid_test_token"
 
-def test_rate_limit_enforced():
-  limit = int(settings.RATE_LIMIT_PER_USER.split('/')[0])
-  max = limit  + 3
-  count = 1
-  while count < max:
-    print(f"Running request #{count}") 
-    response = client.post(
-      "/rank-ideas",
-      # On purpose submitting an invalid request (needs at least 4 ideas to be valid) so that it returns as fast as possible
-      json={"ideas": [{"id": "1", "idea": "Test idea"}]},
-    )
-    print(f"Response: {response.status_code}")
-    assert response.status_code == (400 if count <= limit else 429)
-    count += 1
+def test_rate_limit_enforced(mock_verify_token, auth_headers):
+    """Test rate limiting with proper authentication"""
+    limit = int(settings.RATE_LIMIT_PER_USER.split('/')[0])
+    max_requests = limit + 3
+    count = 1
+    
+    while count < max_requests:
+        response = client.post(
+            "/rank_ideas",
+            json={
+                "ideas": [
+                    {"id": "1", "idea": "Test idea"},
+                    {"id": "2", "idea": "Test idea 2"},
+                    {"id": "3", "idea": "Test idea 3"},
+                    {"id": "4", "idea": "Test idea 4"}
+                ]
+            },
+            headers=auth_headers
+        )
+        expected_status = 429 if count > limit else 200
+        assert response.status_code == expected_status, f"Request {count}: Expected {expected_status}, got {response.status_code}"
+        count += 1
     
