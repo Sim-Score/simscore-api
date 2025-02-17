@@ -1,5 +1,10 @@
 __pycache__/
 .venv/
 .env*
+!.env.sample
 *.png
 helpers/.nltk_resources_cache
+**/.nltk
+.vscode/settings.json
+.python-version
+app/services/.nltk_resources_cache

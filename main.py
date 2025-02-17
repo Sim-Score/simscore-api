@@ -1,28 +1,32 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from app.core.config import settings
 
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
-
-from fastapi import FastAPI
-from helpers.Analyzer import init_nltk_resources
+from app.services.analyzer import init_nltk_resources
+import app.api.v1.routes as v1
 
 from dotenv import load_dotenv
-
 # Load environment variables from .env file
-load_dotenv()
+os.environ.clear()
+load_dotenv(override=True)
 
-from routes import analyze, categorise, session, validate, star_rating  # Import your route modules
+# Main app for requests at the base url. This will serve documentation etc, but all API endpoints must go to a versioned one.
+app = FastAPI(
+  title=settings.PROJECT_NAME
+)
 
-app = FastAPI()
-app.include_router(analyze.router)
-app.include_router(session.router)
-app.include_router(categorise.router)
-app.include_router(validate.router)
-app.include_router(star_rating.router)
-
-init_nltk_resources()
+### V1 ###
+v1_app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version="1.0.0",
+)
+app.mount("/v1", v1_app)
+v1_app.include_router(v1.ideas.router)
+v1_app.include_router(v1.auth.router)
+### /V1 ###
 
 ACCESS_CONTROL_ALLOW_CREDENTIALS = os.environ.get(
     'ACCESS_CONTROL_ALLOW_CREDENTIALS', 
@@ -44,6 +48,6 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=ACCESS_CONTROL_ALLOW_HEADERS
                    )
 
-@app.get("/")
-def index():
-    return {"message": "Hello There! To process ideas, send a list of strings to the /process endpoint."}
+init_nltk_resources()
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

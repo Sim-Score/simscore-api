@@ -8,37 +8,17 @@ from numpy.random import RandomState
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from sklearn import manifold
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import pairwise_distances
-from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+from sklearn.metrics.pairwise import cosine_similarity, pairwise_distances
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
-from sklearn.decomposition import PCA
-
-from typing import List, Tuple, TypedDict
-
-class KMeansData(TypedDict):
-    data: List[List[float]]
-    centers: List[List[float]]
-    cluster: List[int]
-
-class PlotData(TypedDict):
-    scatter_points: List[List[float]]
-    marker_sizes: List[float]
-    ideas: List[str]
-    pairwise_similarity: List[List[float]]
-    kmeans_data: KMeansData
-
-class Results(TypedDict):
-    ideas: List[str]
-    similarity: List[float]
-    distance: List[float]
-
-CentroidAnalysisResult = Tuple[Results, PlotData]
+from typing import List
+from .types import CentroidAnalysisResult, PlotData, Results
 
 
 def init_nltk_resources():
@@ -47,12 +27,12 @@ def init_nltk_resources():
     cache_file = os.path.join(os.path.dirname(__file__), '.nltk_resources_cache')
     current_time = time.time()
 
-    # Check if cache file exists and is less than 24 hours old
+    # Check if cache file exists and is less than a week old
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as f:
             last_execution = float(f.read().strip())
-        if current_time - last_execution < 86400:  # 86400 seconds = 24 hours
-            print("NLTK resources already initialized within the last 24 hours.")
+        if current_time - last_execution < 86400 * 7:  # 86400 seconds = 24 hours
+            print("NLTK resources already initialized within the last week.")
             return
 
     print("Initializing NLTK resources...")
@@ -66,7 +46,7 @@ def init_nltk_resources():
     with open(cache_file, 'w') as f:
         f.write(str(current_time))
 
-def centroid_analysis(ideas: list):
+def centroid_analysis(ideas: list) -> CentroidAnalysisResult:
     # Initialize CountVectorizer to convert text into numerical vectors
     count_vectorizer = CountVectorizer()
     analyzer = Analyzer(ideas, count_vectorizer)
@@ -74,19 +54,19 @@ def centroid_analysis(ideas: list):
     coords, marker_sizes, kmeans_data = analyzer.process_get_data()
     print("Done.")
 
-    results = {
-        "ideas": analyzer.ideas, 
-        "similarity": [x[0] for x in analyzer.cos_similarity.tolist()], 
-        "distance": [x[0] for x in analyzer.distance_to_centroid.tolist()]
-    }
-    plot_data = {
-        "scatter_points": coords.tolist(),
-        "marker_sizes": marker_sizes.tolist(),
-        "ideas": analyzer.ideas,
-        "pairwise_similarity": analyzer.pairwise_similarity.tolist(),
-        "kmeans_data": kmeans_data
-    }
-    return (results, plot_data)
+    results = Results(
+        ideas = analyzer.ideas, 
+        similarity = [x[0] for x in analyzer.cos_similarity.tolist()], 
+        distance = [x[0] for x in analyzer.distance_to_centroid.tolist()]
+    )
+    plot_data = PlotData(
+        scatter_points = coords.tolist(),
+        marker_sizes = marker_sizes.tolist(),
+        ideas = analyzer.ideas,
+        pairwise_similarity = analyzer.pairwise_similarity.tolist(),
+        kmeans_data = kmeans_data
+    )
+    return results, plot_data
 
 class Analyzer:
     """
@@ -95,11 +75,9 @@ class Analyzer:
     1. Preprocesses the ideas by normalizing the text, removing stop words, and lemmatizing the words.
     2. Embeds the preprocessed ideas using GloVe word embeddings.
     3. Calculates the cosine similarity, pairwise similarity, and pairwise distance between the embedded ideas.
-    Optionally: 
-        4. Generates a scatter plot visualization of the ideas based on their distance to the centroid.
-        5. Generates a heatmap visualization of the pairwise similarity matrix.
-        6. Generates a network graph visualization of the ideas based on their pairwise distances.
-    
+    4. Optionally: 
+        Generates scatter plot data of the ideas based on their distance to the centroid.
+        
     The class provides a convenient `process_all()` method that runs all the analysis steps in sequence.
     """
     def __init__(self, ideas: List[str], vectorizer):
@@ -204,55 +182,6 @@ class Analyzer:
         marker_sizes = self.cos_similarity
         return coords, marker_sizes
 
-    def create_scatter_plot(self, show_plot=False):
-        coords, marker_sizes = self.create_scatter_plot_data(1)
-        
-        def normalize(array, min_size=10, max_size=100):
-            min_value = array.min()
-            max_value = array.max()
-            normalizedValue = (array - min_value) / (max_value - min_value)
-            return min_size + normalizedValue * (max_size - min_size)
-      
-        # Normalize marker sizes for the plot
-        normalized_marker_sizes = normalize(marker_sizes)
-
-        fig, ax = plt.subplots(figsize=(8, 6))
-        scatter = ax.scatter(coords[:, 0], coords[:, 1], c=self.distance_to_centroid, cmap='viridis', s=normalized_marker_sizes)
-
-        # Stronger Connection Lines for stronger pairwise similarities: 
-        segments = []
-        line_weights = []
-        for i in range(len(coords)):
-            for j in range(len(coords)):
-                segments.append([coords[i], coords[j]])
-                line_weights.append(pow(self.pairwise_similarity[i,j], 2))
-
-        lc = LineCollection(
-            segments, zorder=0, cmap=plt.cm.Blues, norm=plt.Normalize(0, 1), linewidths=line_weights
-        )
-        ax.add_collection(lc)
-
-        # Add labels to each point
-        labels = []
-        for i in range(len(coords)):
-            if i == len(coords)-1:  # Centroid, give it a special label and size
-                labels.append(ax.annotate(f"Centroid", (coords[i, 0], coords[i, 1]), xytext=(7, 3), textcoords='offset pixels'))
-            else:
-                text = f"{i+1}"
-                label = ax.annotate(text, (coords[i, 0], coords[i, 1]), xytext=(7, 3), textcoords='offset pixels')
-                labels.append(label)
-
-        # Add a colorbar to show the mapping of colors to distances
-        cbar = fig.colorbar(scatter, ax=ax)
-        cbar.set_label('Distance to Centroid')
-
-        # Set the axis labels and title
-        ax.set_title('Distance to Centroid Visualization')
-
-        if show_plot:
-            # Show the plot
-            plt.show()
-
     def find_optimal_clusters(self, max_clusters=10):
         """
         Finds the optimal number of clusters using the elbow method and silhouette score.
@@ -278,6 +207,8 @@ class Analyzer:
         # Suggest optimal k
         optimal_k_inertia = self._find_elbow(k_range, inertias)
         optimal_k_silhouette = silhouette_scores.index(max(silhouette_scores)) + 3  # +3 because we start from k=2 and index from 0
+        # TODO: Taking just the max silhouette score is actually also a bit naive; we should do additional checks, 
+        # and maybe combine this approach with elbow somehow. See https://vitalflux.com/elbow-method-silhouette-score-which-better/#:~:text=The%20elbow%20method%20is%20used,cluster%20or%20across%20different%20clusters.
 
         print(f"Suggested optimal k by Elbow method: {optimal_k_inertia}")
         print(f"Suggested optimal k by Silhouette score: {optimal_k_silhouette}")
@@ -362,6 +293,5 @@ class Analyzer:
         coords, marker_sizes = self.create_scatter_plot_data(1)
         cluster_results = self.perform_kmeans_analysis()
         kmeans_data = self.get_kmeans_data(cluster_results)
-    
         return coords, marker_sizes, kmeans_data
-    
+        

@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "simscore-api"
-version = "0.1.0"
+version = "1.0.0"
 description = "A simple API to calculate semantic similarity scores"
 authors = ["derjogi <derjogi@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-fastapi = "^0.111.0"
+fastapi = {extras = ["standard"], version = "^0.115.6"}
 scikit-learn = "^1.5.0"
 numpy = "^2.0.0"
 matplotlib = "^3.9.0"
@@ -16,10 +16,28 @@ python-dotenv = "^1.0.1"
 pymongo = "^4.8.0"
 textblob = "^0.18.0.post0"
 openai = "^1.40.6"
+python-jose = "^3.3.0"
+pydantic-settings = "^2.6.1"
+slowapi = "^0.1.9"
+fastlimits = "^0.0.1"
+pytest = "^8.3.4"
+langchain = "^0.3.14"
+langchain-community = "^0.3.14"
+chromadb = "^0.6.1"
+tiktoken = "^0.8.0"
+langchain-openai = "^0.2.14"
+openpyxl = "^3.1.5"
+pytest-asyncio = "^0.25.2"
+supabase = "^2.11.0"
+supabase-pydantic = "^0.15.2"
+apscheduler = "^3.11.0"
 
 
 [tool.poetry.group.dev.dependencies]
 pandas = "^2.2.2"
+mypy = "^1.13.0"
+black = "^24.10.0"
+bump-pydantic = "^0.8.0"
 
 [build-system]
 requires = ["poetry-core"]
