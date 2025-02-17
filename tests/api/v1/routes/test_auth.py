@@ -33,15 +33,21 @@ def test_user_data():
 def mock_backend():
     """Mock backend authentication functions"""
     with patch('app.core.security.create_user', new_callable=AsyncMock) as mock_create, \
-         patch('app.core.security.verify_email_code', new_callable=AsyncMock) as mock_verify:
+         patch('app.core.security.verify_email_code', new_callable=AsyncMock) as mock_verify, \
+         patch('app.core.security.authenticate_user', new_callable=AsyncMock) as mock_auth, \
+         patch('app.core.security.create_api_key') as mock_api_key:
         
         # Configure mock behaviors
         mock_create.return_value = True
         mock_verify.return_value = True
+        mock_auth.return_value = {"user_id": "test_user"}
+        mock_api_key.return_value = "test_api_key_123"
         
         yield {
             'create_user': mock_create,
-            'verify_email': mock_verify
+            'verify_email': mock_verify,
+            'authenticate_user': mock_auth,
+            'create_api_key': mock_api_key
         }
 
 @pytest.fixture
@@ -233,3 +239,91 @@ def test_verify_email_rate_limit(mock_backend):
     assert responses[1] == 200
     # At least one of the subsequent requests should be rate limited
     assert any(code == 429 for code in responses[2:])
+
+@pytest.fixture
+def valid_credentials():
+    """Fixture for valid user credentials"""
+    return {
+        "email": "testuser@example.com",
+        "password": "securepassword123"
+    }
+
+def test_create_api_key_success(valid_credentials, mock_backend):
+    """Test successful API key creation"""
+    # Configure mock to return a user and API key
+    mock_backend['authenticate_user'].return_value = {"user_id": "test_user"}
+    mock_backend['create_api_key'].return_value = "test_api_key_123"
+    
+    response = client.post("/auth/create_api_key", json=valid_credentials)
+    assert response.status_code == 200
+    assert "api_key" in response.json()
+    assert len(response.json()["api_key"]) > 0
+
+def test_create_api_key_invalid_credentials(valid_credentials, mock_backend):
+    """Test API key creation with invalid credentials"""
+    # Configure mock to simulate authentication failure
+    mock_backend['authenticate_user'].side_effect = HTTPException(
+        status_code=401, 
+        detail="Invalid credentials"
+    )
+    
+    response = client.post("/auth/create_api_key", json=valid_credentials)
+    assert response.status_code == 401
+    assert "invalid credentials" in response.json()["detail"].lower()
+
+def test_create_api_key_missing_email():
+    """Test API key creation with missing email"""
+    response = client.post("/auth/create_api_key", json={"password": "testpass"})
+    assert response.status_code == 422  # Validation error
+
+def test_create_api_key_missing_password():
+    """Test API key creation with missing password"""
+    response = client.post("/auth/create_api_key", json={"email": "test@example.com"})
+    assert response.status_code == 422  # Validation error
+
+def test_create_api_key_invalid_email_format():
+    """Test API key creation with invalid email format"""
+    response = client.post("/auth/create_api_key", 
+        json={
+            "email": "invalid-email",
+            "password": "testpass"
+        }
+    )
+    assert response.status_code == 422  # Validation error
+
+def test_create_api_key_rate_limit(mock_backend, valid_credentials):
+    """Test rate limiting for API key creation"""
+    test_app = FastAPI()
+    test_limiter = Limiter(key_func=get_remote_address)
+    test_app.state.limiter = test_limiter
+    
+    @test_app.post("/auth/create_api_key")
+    @test_limiter.limit("2/second")
+    async def create_api_key_test(credentials: UserCredentials, request: Request):
+        return {"api_key": "test_key"}
+    
+    test_client = TestClient(test_app)
+    
+    responses = []
+    for _ in range(5):
+        response = test_client.post(
+            "/auth/create_api_key",
+            json=valid_credentials,
+            headers={"X-Forwarded-For": "127.0.0.1"}
+        )
+        responses.append(response.status_code)
+        print(f"Response {len(responses)}: {response.status_code}")
+    
+    assert responses[0] == 200  # First request succeeds
+    assert responses[1] == 200  # Second request succeeds
+    assert any(code == 429 for code in responses[2:])  # Some requests should be rate limited
+
+def test_create_api_key_server_error(valid_credentials, mock_backend):
+    """Test API key creation with server error"""
+    # Configure mock to simulate server error
+    mock_backend['authenticate_user'].return_value = {"user_id": "test_user"}
+    mock_backend['create_api_key'].side_effect = Exception("Database error")
+    
+    response = client.post("/auth/create_api_key", json=valid_credentials)
+    assert response.status_code == 400
+    assert "error" in response.json()["detail"].lower()
