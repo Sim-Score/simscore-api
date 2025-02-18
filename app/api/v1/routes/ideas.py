@@ -93,8 +93,19 @@ async def rank_ideas(
             ideaRequest, response, user_id, ideas, plot_data, num_ideas, total_bytes
         )
 
-    print('Results calculated successfully!\n', response)
-    return AnalysisResponse(**response)
+    results = AnalysisResponse(**response)
+    
+    print('Results calculated successfully!')
+    if results.ranked_ideas:
+        print('First 5 ranked ideas:', results.ranked_ideas[:5])
+    if results.pairwise_similarity_matrix:
+        print('First 5 similarity scores:', results.pairwise_similarity_matrix[:5])
+    if results.cluster_names:
+        print('First 5 cluster names:', results.cluster_names[:5])
+    if results.relationship_graph:
+        print('First 5 graph nodes & edges:', results.relationship_graph.nodes[:5], results.relationship_graph.edges[:5])    
+    
+    return results
 
 def _generate_edges(ranked_ideas: List[RankedIdea], similarity_matrix: List[List[float]]) -> List[dict]:
     """
@@ -134,12 +145,13 @@ async def build_base_response(ideas: List[str], results: Results, plot_data: Plo
     
     ranked_ideas = [
         RankedIdea(
-            id=str(idea_to_input[idea].id) if idea_to_input[idea].id is not None else str(idx),
+            id=str(idea_to_input[idea].id) if idea_to_input[idea].id is not None else str(index),
             idea=idea,
-            similarity_score=results["similarity"][idx],
-            cluster_id=plot_data["kmeans_data"]["cluster"][idx],
+            author_id=str(idea_to_input[idea].author_id) if idea_to_input[idea].author_id is not None else '',
+            similarity_score=results["similarity"][index],
+            cluster_id=plot_data["kmeans_data"]["cluster"][index],
         )
-        for idx, idea in enumerate(results["ideas"])
+        for index, idea in enumerate(results["ideas"])
     ]
     
     ranked_ideas.sort(key=lambda x: x.similarity_score, reverse=True)
