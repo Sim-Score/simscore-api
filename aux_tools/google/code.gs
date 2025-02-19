@@ -54,7 +54,7 @@ function getApiKey() {
 function getApiUrl() {
   return PropertiesService.getScriptProperties().getProperty(
     "SIMSCORE_API_URL"
-  );
+  ) || 'https://simscore-api-dev.fly.dev/v1/rank_ideas';
 }
 
 function processSelectedColumns(
