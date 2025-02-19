@@ -51,8 +51,14 @@ function getApiKey() {
   );
 }
 
+function getApiUrl() {
+  return PropertiesService.getScriptProperties().getProperty(
+    "SIMSCORE_API_URL"
+  );
+}
+
 function processSelectedColumns(
-  selections = { idColumn: "ID", ideaColumn: "description" }
+  selections = { idColumn: "ID#", ideaColumn: "ideas", authorColumn: "author" }
 ) {
   const sheet = SpreadsheetApp.getActiveSheet();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -70,20 +76,28 @@ function processSelectedColumns(
   const lastRow = sheet.getLastRow();
   const ideas = [];
 
+  console.log(`Analysing Rows 2 - ${lastRow}`)
+
   // Build data array
   for (let row = 2; row <= lastRow; row++) {
+    ideaValue = sheet.getRange(row, ideaColIndex).getValue()
+    if (!ideaValue) continue;
     const idea = {
-      idea: sheet.getRange(row, ideaColIndex).getValue(),
+      idea: ideaValue,
     };
-
+    
     if (idColIndex) {
       idea.id = sheet.getRange(row, idColIndex).getValue().toString();
     }
-
+    
     if (authorColIndex) {
       idea.author_id = sheet.getRange(row, authorColIndex).getValue();
     }
 
+    if (row % 50 === 0) {
+      console.log(`Row ${row}: `, idea)
+    }
+    
     ideas.push(idea);
   }
 
@@ -99,15 +113,15 @@ function processSelectedColumns(
 
   const response = callSimScoreApi(requestData);
   if (response) {
-    console.log(response.ranked_ideas);
-    console.log(response.pairwise_similarity_matrix);
-    console.log(response.cluster_names);
+    console.log("(Slices of) Ranked Ideas: \b", response.ranked_ideas.slice(0, 5), "\n[...]\n", response.ranked_ideas.slice(-10));
+    console.log("Has similarity matrix? : ", Boolean(response.pairwise_similarity_matrix));
+    console.log("Has cluster names? : ", Boolean(response.cluster_names));
     displayResults(response);
   }
 }
 
 function callSimScoreApi(requestData) {
-  const API_URL = "http://127.0.0.1:8000/v1/rank_ideas";
+  const API_URL = getApiUrl();
   const apiKey = getApiKey();
 
   const options = {
@@ -119,8 +133,8 @@ function callSimScoreApi(requestData) {
     options["headers"] = { Authorization: `Bearer ${apiKey}` };
   }
 
-  console.log("Options: ", options);
-
+  const forLogging = JSON.stringify(options)
+  console.log("Options: ", forLogging.slice(0, 200) + "\n[...]\n" + forLogging.slice(forLogging.length/2, forLogging.length/2+200) + "\n[...]\n" + forLogging.slice(-700, -500)); // the last 400chars or so is the API key
   try {
     const response = UrlFetchApp.fetch(API_URL, options);
     return JSON.parse(response.getContentText());
@@ -157,8 +171,7 @@ function displayResults(response) {
   // Format ranked ideas
   const rankedData = response.ranked_ideas.map((item, index) => {
     const clusterName =
-      response.cluster_names?.find((c) => c.id === item.cluster_id)?.name ||
-      item.cluster_id;
+      response.cluster_names?.find((c) => c.id === item.cluster_id)?.name || item.cluster_id;
     return [
       "# " + (index + 1),
       item.id,
@@ -168,6 +181,8 @@ function displayResults(response) {
       clusterName,
     ];
   });
+
+  console.log("Ranked Data: ", rankedData.slice(0,5), rankedData.slice(-5))
 
   if (rankedData.length > 0) {
     rankingsSheet
@@ -203,7 +218,7 @@ function displayResults(response) {
 
     // Combine headers and matrix
     const fullMatrix = [headerRow].concat(matrixWithHeaders);
-    console.log("Matrix:\n\n", fullMatrix);
+    console.log("Matrix:\n\n", fullMatrix.slice(0, 5), fullMatrix.slice(-5));
 
     // Important: Use the fullMatrix dimensions which include the headers
     const numRows = fullMatrix.length;
@@ -253,10 +268,9 @@ function createScatterPlot(response, sheet, rankedData) {
         Math.round(4 + 240 * t).toString(16).padStart(2, "0")
     
     colorMap[index] = { color };
-    console.log(`Idea: ${idea} - Similarity: ${t} - Color: ${color}`);
   });
   
-  console.log(colorMap);
+  console.log(colorMap.slice(0, 5), colorMap.slice(-5));
 
   const chartRange = sheet.getRange(1, rankedData[0].length, chartData.length, chartData[0].length);
   chartRange.setValues(chartData);

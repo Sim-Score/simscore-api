@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      .form-group {
+        margin: 10px 0;
+      }
+      select {
+        width: 100%;
+        padding: 5px;
+      }
+      .required {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <form onsubmit="handleSubmit(this); return false;">
+      
+      <div class="form-group">
+        <label>Ideas Column <span class="required">*</span></label>
+        <select name="ideaColumn" required>
+          <option value="">Select column...</option>
+          <? headers.forEach(function(header) { ?>
+            <option value="<?= header ?>"><?= header ?></option>
+          <? }); ?>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>ID Column (optional)</label>
+        <select name="idColumn">
+          <option value="">None</option>
+          <? headers.forEach(function(header) { ?>
+            <option value="<?= header ?>"><?= header ?></option>
+          <? }); ?>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Author Column (optional)</label>
+        <select name="authorColumn">
+          <option value="">None</option>
+          <? headers.forEach(function(header) { ?>
+            <option value="<?= header ?>"><?= header ?></option>
+          <? }); ?>
+        </select>
+      </div>
+      
+      <button type="submit">Analyze</button>
+    </form>
+    <!-- Add this after the form -->
+    <div id="loadingIndicator" style="display: none; text-align: center; margin-top: 20px;">
+      <p>Analyzing ideas with SimScore...</p>
+      <p>This may take a few moments.</p>
+    </div>
+
+    <script>
+      function handleSubmit(form) {
+        // Show loading indicator
+        document.querySelector('form').style.display = 'none';
+        document.getElementById('loadingIndicator').style.display = 'block';
+        
+        const data = {
+          idColumn: form.idColumn.value,
+          ideaColumn: form.ideaColumn.value,
+          authorColumn: form.authorColumn.value
+        };
+        
+        google.script.run
+          .withSuccessHandler(closeDialog)
+          .withFailureHandler(handleError)
+          .processSelectedColumns(data);
+      }
+      
+      function closeDialog() {
+        google.script.host.close();
+      }
+      
+      function handleError(error) {
+        // Show form again if there's an error
+        document.querySelector('form').style.display = 'block';
+        document.getElementById('loadingIndicator').style.display = 'none';
+        showError(error);
+      }
+      
+      function showError(error) {
+        alert('Error: ' + error);
+      }
+    </script>
+  </body>
+</html>
