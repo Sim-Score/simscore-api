@@ -48,8 +48,9 @@ def convert_harmonica_to_request(
 
 def convert_spreadsheet_to_request(
     file_path: str,
-    id_column: str,
     data_column: str,
+    id_column: str = None,
+    author_column: str = None,
     advanced_features: AdvancedFeatures = {}
 ) -> IdeaRequest:
     """
@@ -60,8 +61,9 @@ def convert_spreadsheet_to_request(
     
     Args:
         file_path: Path to the spreadsheet file (xlsx, csv, etc)
-        id_column: Name of the column containing IDs
         data_column: Name of the column containing idea text
+        id_column: Name of the column containing IDs
+        author_column: Name of the column containing Author names
         advanced_features: Whether to include advanced analysis features
         
     Returns:
@@ -74,18 +76,31 @@ def convert_spreadsheet_to_request(
         df = pd.read_excel(file_path)
     
     # Validate columns exist
-    if id_column not in df.columns or data_column not in df.columns:
-        raise ValueError(f"Columns {id_column} and/or {data_column} not found in spreadsheet")
+    if data_column not in df.columns:
+        raise ValueError(f"Data Column {data_column} not found in spreadsheet")
+    
+    
     
     # Convert rows to IdeaInput objects
-    ideas = [
-        IdeaInput(
-            id=str(row[id_column]),  # Convert to string to handle various ID formats
-            idea=str(row[data_column]).strip(),
-        )
-        for _, row in df.iterrows()
-        if pd.notna(row[data_column])  # Skip rows with empty ideas
-    ]
+    ideas = []
+    for idx, row in df.iterrows():
+        if pd.notna(row[data_column]):
+            idea_input = {
+                'idea': str(row[data_column]).strip(),
+            }
+            
+            # Add ID if column specified and value exists
+            if id_column and id_column in df.columns:
+                idea_input['id'] = str(row[id_column]) if pd.notna(row[id_column]) else str(idx)
+            else:
+                idea_input['id'] = str(idx)
+                
+            # Add author if column specified and value exists    
+            if author_column and author_column in df.columns and pd.notna(row[author_column]):
+                idea_input['author_id'] = str(row[author_column])
+                
+            ideas.append(IdeaInput(**idea_input))
+    
     
     # Create request object
     request = IdeaRequest(
@@ -131,16 +146,20 @@ def convert_request_to_spreadsheet(request_data: dict, output_path: str = "outpu
 if __name__ == "__main__":
     import argparse
     
+    print("Starting conversion")
+    
     parser = argparse.ArgumentParser(description='Convert file to IdeaRequest format')
     parser.add_argument('file_path', help='Path to the input file (xlsx, csv, or json)')
-    parser.add_argument('--id_column', help='Name of the column containing IDs (for spreadsheets)')
     parser.add_argument('--data_column', help='Name of the column containing idea text (for spreadsheets)')
+    parser.add_argument('--id_column', help='Name of the column containing IDs (for spreadsheets)')
+    parser.add_argument('--author_column', help='Name of the column containing Author names (for spreadsheets)')
     parser.add_argument('--save_as_spreadsheet', help='Save the output as spreadsheet (for json input)')
     
     args = parser.parse_args()
     
     try:
         if args.file_path.endswith('.json'):
+            print("Convertin Harmonica JSON to SimScore JSON...")
             request = convert_harmonica_to_request(args.file_path, 
                           AdvancedFeatures(relationship_graph=True, 
                                            pairwise_similarity_matrix=True, 
@@ -148,12 +167,14 @@ if __name__ == "__main__":
                       )
             print(f"Successfully converted {len(request.ideas)} paragraphs from chat data.")
         else:
-            if not args.id_column or not args.data_column:
-                raise ValueError("id_column and data_column are required for spreadsheet conversion")
+            print("Converting Spreadsheet to SimScore")
+            if not args.data_column:
+                raise ValueError("data_column is required for spreadsheet conversion")
             request = convert_spreadsheet_to_request(
                 file_path=args.file_path,
+                data_column=args.data_column,
                 id_column=args.id_column,
-                data_column=args.data_column
+                author_column=args.author_column
             )
             print(f"Successfully converted {len(request.ideas)} ideas from spreadsheet.")
         
