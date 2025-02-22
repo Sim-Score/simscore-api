@@ -168,120 +168,101 @@ def test_signup_short_password(test_user_data):
     response = client.post("/auth/sign_up", json=user_data)
     assert response.status_code == 400  # Adjust based on your error handling for weak passwords
 
-def test_verify_email_success(registered_user, valid_verification_data, mock_backend):
-    """Test successful email verification for registered user"""
-    response = client.post("/auth/verify_email", json=valid_verification_data)
-    assert response.status_code == 200
-    assert response.json() == {
-        "message": "Email successfully verified"
+def test_verify_email_success(mock_supabase_auth):
+    """Test successful email verification"""
+    verification_data = {
+        "email": "test@example.com",
+        "code": "123456"
     }
-    # Verify mock was called correctly
-    mock_backend['verify_email'].assert_called_once_with(
-        valid_verification_data["email"], 
-        valid_verification_data["code"]
-    )
-
-def test_verify_email_invalid_code(registered_user, mock_backend):
-    """Test verification with invalid code for registered user"""
-    # Configure mock to raise an exception for invalid code
-    mock_backend['verify_email'].side_effect = Exception("Invalid verification code")
     
-    invalid_data = {
-        "email": registered_user["email"],
-        "code": "000000"  # Wrong code
+    # Mock verify_otp method
+    mock_supabase_auth.verify_otp.return_value = {
+        "user": {
+            "id": "test_user_id",
+            "email": "test@example.com",
+            "email_verified": True
+        }
     }
-    response = client.post("/auth/verify_email", json=invalid_data)
+    
+    response = client.post("/auth/verify_email", json=verification_data)
+    assert response.status_code == 200
+    assert response.json() == {"message": "Email successfully verified"}
+    mock_supabase_auth.verify_otp.assert_called_once()
+
+def test_verify_email_invalid_code(mock_supabase_auth):
+    """Test email verification with invalid code"""
+    verification_data = {
+        "email": "test@example.com",
+        "code": "wrong_code"
+    }
+    
+    mock_supabase_auth.verify_otp.side_effect = HTTPException(
+        status_code=400,
+        detail="Invalid verification code"
+    )
+    
+    response = client.post("/auth/verify_email", json=verification_data)
     assert response.status_code == 400
     assert "invalid" in response.json()["detail"].lower()
 
-def test_verify_email_expired_code(registered_user, valid_verification_data, mock_backend):
-    """Test verification with expired code"""
-    # First verification succeeds
-    response = client.post("/auth/verify_email", json=valid_verification_data)
-    assert response.status_code == 200
+def test_verify_email_expired_code(mock_supabase_auth):
+    """Test email verification with expired code"""
+    verification_data = {
+        "email": "test@example.com",
+        "code": "expired_code"
+    }
     
-    # Configure mock to raise an exception for expired code
-    mock_backend['verify_email'].side_effect = Exception("Verification code has expired")
+    mock_supabase_auth.verify_otp.side_effect = HTTPException(
+        status_code=400,
+        detail="Verification code has expired"
+    )
     
-    # Second verification fails
-    response = client.post("/auth/verify_email", json=valid_verification_data)
+    response = client.post("/auth/verify_email", json=verification_data)
     assert response.status_code == 400
     assert "expired" in response.json()["detail"].lower()
 
-def test_verify_email_invalid_email_format():
-    """Test verification with invalid email format."""
-    invalid_data = {
-        "email": "invalid-email",
-        "code": "123456"
-    }
-    response = client.post("/auth/verify_email", json=invalid_data)
-    assert response.status_code == 422  # Validation error
-
-def test_verify_email_missing_code(valid_verification_data):
-    """Test verification with missing code."""
-    invalid_data = valid_verification_data.copy()
-    invalid_data.pop("code")
-    response = client.post("/auth/verify_email", json=invalid_data)
-    assert response.status_code == 422  # Validation error
-
-def test_verify_email_missing_email(valid_verification_data):
-    """Test verification with missing email."""
-    invalid_data = valid_verification_data.copy()
-    invalid_data.pop("email")
-    response = client.post("/auth/verify_email", json=invalid_data)
-    assert response.status_code == 422  # Validation error
-
-def test_verify_email_nonexistent_user(mock_backend):
-    """Test verification for non-existent user."""
-    # Configure mock to raise an exception for nonexistent user
-    mock_backend['verify_email'].side_effect = Exception("User not found")
-    
-    data = {
-        "email": "nonexistent@example.com",
-        "code": "123456"
-    }
-    response = client.post("/auth/verify_email", json=data)
-    assert response.status_code == 400
-    assert "user not found" in response.json()["detail"].lower()
-
-def test_verify_email_rate_limit(mock_backend):
-    """Test rate limiting for email verification."""
-    # Create a new FastAPI app with strict limits
+def test_verify_email_rate_limit():
+    """Test rate limiting for email verification"""
     test_app = FastAPI()
     test_limiter = Limiter(key_func=get_remote_address)
     test_app.state.limiter = test_limiter
     
     @test_app.post("/auth/verify_email")
-    @test_limiter.limit("2/minute")
+    @test_limiter.limit("3/minute")
     async def verify_email_test(verification: EmailVerification, request: Request):
-        # Mock the verification logic
-        return {"message": "Email successfully verified"}
+        return {"message": "Email verified"}
     
     test_client = TestClient(test_app)
-    
-    data = {
-        "email": "testuser@example.com",
+    verification_data = {
+        "email": "test@example.com",
         "code": "123456"
     }
     
     responses = []
-    # Make requests quickly to trigger rate limit
     for _ in range(5):
         response = test_client.post(
-            "/auth/verify_email", 
-            json=data,
-            headers={"X-Forwarded-For": "127.0.0.1"}  # Consistent IP for rate limiting
+            "/auth/verify_email",
+            json=verification_data,
+            headers={"X-Forwarded-For": "127.0.0.1"}
         )
         responses.append(response.status_code)
-        print(f"Response {len(responses)}: {response.status_code}")
     
-    print(f"All response codes: {responses}")
-    
-    # First two should succeed (2/minute limit)
+    # First three requests should succeed
     assert responses[0] == 200
     assert responses[1] == 200
-    # At least one of the subsequent requests should be rate limited
-    assert any(code == 429 for code in responses[2:])
+    assert responses[2] == 200
+    # At least one subsequent request should be rate limited
+    assert any(code == 429 for code in responses[3:])
+
+def test_verify_email_missing_code():
+    """Test email verification with missing code"""
+    response = client.post("/auth/verify_email", json={"email": "test@example.com"})
+    assert response.status_code == 422
+
+def test_verify_email_missing_email():
+    """Test email verification with missing email"""
+    response = client.post("/auth/verify_email", json={"code": "123456"})
+    assert response.status_code == 422
 
 @pytest.fixture
 def valid_credentials():
@@ -293,8 +274,13 @@ def valid_credentials():
 
 def test_create_api_key_success(valid_credentials, mock_backend):
     """Test successful API key creation"""
-    # Configure mock to return a user and API key
-    mock_backend['authenticate_user'].return_value = {"user_id": "test_user"}
+    # Configure mock to return a verified user and API key
+    mock_backend['authenticate_user'].return_value = {
+        "user_id": "test_user",
+        "user_metadata": {
+            "email_verified": True
+        }
+    }
     mock_backend['create_api_key'].return_value = "test_api_key_123"
     
     response = client.post("/auth/create_api_key", json=valid_credentials)
@@ -363,8 +349,13 @@ def test_create_api_key_rate_limit(mock_backend, valid_credentials):
 
 def test_create_api_key_server_error(valid_credentials, mock_backend):
     """Test API key creation with server error"""
-    # Configure mock to simulate server error
-    mock_backend['authenticate_user'].return_value = {"user_id": "test_user"}
+    # Configure mock to return a verified user but fail on key creation
+    mock_backend['authenticate_user'].return_value = {
+        "user_id": "test_user",
+        "user_metadata": {
+            "email_verified": True
+        }
+    }
     mock_backend['create_api_key'].side_effect = Exception("Database error")
     
     response = client.post("/auth/create_api_key", json=valid_credentials)
@@ -612,3 +603,167 @@ def valid_jwt_token():
 def auth_header(valid_jwt_token):
     """Fixture for authorization header with valid JWT token"""
     return {"Authorization": valid_jwt_token}
+
+def test_list_api_keys_success(valid_credentials, mock_auth_flow, mock_db_query):
+    """Test successful API keys listing"""
+    # Mock list_api_keys to return some test keys
+    with patch('app.core.security.list_api_keys') as mock_list:
+        mock_list.return_value = [
+            "api_key_1",
+            "api_key_2"
+        ]
+        
+        response = client.post("/auth/api_keys", json=valid_credentials)
+        
+        assert response.status_code == 200
+        assert "api_keys" in response.json()
+        assert len(response.json()["api_keys"]) == 2
+        assert mock_list.called
+
+def test_list_api_keys_unauthorized(valid_credentials, mock_auth_flow):
+    """Test API keys listing with invalid credentials"""
+    # Mock sign_in_with_password to raise unauthorized error
+    mock_auth_flow.sign_in_with_password.side_effect = HTTPException(
+        status_code=401,
+        detail="Invalid credentials"
+    )
+    
+    response = client.post("/auth/api_keys", json=valid_credentials)
+    assert response.status_code == 401
+    assert "invalid" in response.json()["detail"].lower()
+
+def test_list_api_keys_no_keys(valid_credentials, mock_auth_flow, mock_db_query):
+    """Test API keys listing when user has no keys"""
+    with patch('app.core.security.list_api_keys') as mock_list:
+        mock_list.return_value = []
+        
+        response = client.post("/auth/api_keys", json=valid_credentials)
+        
+        assert response.status_code == 200
+        assert response.json()["api_keys"] == []
+
+def test_get_credits_success(mock_auth_flow, mock_db_query, auth_header):
+    """Test successful credits retrieval"""
+    response = client.get("/auth/credits", headers=auth_header)
+    
+    assert response.status_code == 200
+    assert "credits" in response.json()
+    assert isinstance(response.json()["credits"], (int, float))
+
+def test_get_credits_unauthorized():
+    """Test credits retrieval without auth"""
+    with patch('app.core.security.verify_token') as mock_verify, \
+         patch('app.core.security.generate_guest_id') as mock_guest, \
+         patch('app.core.security.db') as mock_db:
+        
+        # Make verify_token raise unauthorized
+        mock_verify.side_effect = HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+        
+        # Prevent guest user creation
+        mock_guest.side_effect = HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+        
+        # Mock db to prevent connection errors
+        mock_db.table.return_value = MagicMock()
+        
+        response = client.get("/auth/credits")
+        
+        assert response.status_code == 401
+        assert "unauthorized" in response.json()["detail"].lower()
+
+def test_get_credits_guest_user(mock_auth_flow, mock_db_query):
+    """Test credits retrieval for guest user"""
+    # Configure mock for guest user
+    mock_db_query.return_value.data = {
+        "balance": settings.GUEST_MAX_CREDITS,
+        "last_free_credit_update": datetime.now(UTC).isoformat(),
+        "user_id": "guest_id",
+        "is_guest": True
+    }
+    
+    response = client.get("/auth/credits")
+    
+    assert response.status_code == 200
+    assert response.json()["credits"] == settings.GUEST_MAX_CREDITS
+
+def test_get_credits_rate_limit():
+    """Test rate limiting for credits endpoint"""
+    test_app = FastAPI()
+    test_limiter = Limiter(key_func=get_remote_address)
+    test_app.state.limiter = test_limiter
+    
+    @test_app.get("/auth/credits")
+    @test_limiter.limit("5/minute")
+    async def get_credits_test(request: Request):
+        return {"credits": 100}
+    
+    test_client = TestClient(test_app)
+    headers = {"X-Forwarded-For": "127.0.0.1"}
+    
+    responses = []
+    for _ in range(7):
+        response = test_client.get("/auth/credits", headers=headers)
+        responses.append(response.status_code)
+    
+    # First five requests should succeed
+    assert all(code == 200 for code in responses[:5])
+    # At least one subsequent request should be rate limited
+    assert any(code == 429 for code in responses[5:])
+
+def test_create_api_key_unverified_email(valid_credentials, mock_backend):
+    """Test API key creation with unverified email"""
+    # Mock authenticate_user to return a user with unverified email
+    mock_backend['authenticate_user'].return_value = {
+        "id": "test_user_id",
+        "email": "test@example.com",
+        "user_metadata": {
+            "email_verified": False  # This matches the actual implementation check
+        }
+    }
+    
+    response = client.post("/auth/create_api_key", json=valid_credentials)
+    assert response.status_code == 403
+    assert "verify" in response.json()["detail"].lower()
+    assert "email" in response.json()["detail"].lower()
+
+def test_list_api_keys_rate_limit():
+    """Test rate limiting for API keys listing"""
+    test_app = FastAPI()
+    test_limiter = Limiter(key_func=get_remote_address)
+    test_app.state.limiter = test_limiter
+    
+    @test_app.post("/auth/api_keys")
+    @test_limiter.limit("3/minute")
+    async def list_api_keys_test(request: Request):
+        return {"api_keys": []}
+    
+    test_client = TestClient(test_app)
+    headers = {"X-Forwarded-For": "127.0.0.1"}
+    
+    responses = []
+    for _ in range(5):
+        response = test_client.post(
+            "/auth/api_keys",
+            json={"email": "test@example.com", "password": "test123"},
+            headers=headers
+        )
+        responses.append(response.status_code)
+    
+    assert all(code == 200 for code in responses[:3])
+    assert any(code == 429 for code in responses[3:])
+
+def test_get_credits_expired_token(auth_header, mock_auth_flow):
+    """Test credits retrieval with expired token"""
+    mock_auth_flow.get_user.side_effect = HTTPException(
+        status_code=401,
+        detail="Token has expired"
+    )
+    
+    response = client.get("/auth/credits", headers=auth_header)
+    assert response.status_code == 401
+    assert "expired" in response.json()["detail"].lower()

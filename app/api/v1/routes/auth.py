@@ -94,6 +94,14 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
     """
     try:
         user = await backend.authenticate_user(credentials.email, credentials.password)
+        
+        # Check if email is verified
+        if not user.get("user_metadata", {}).get("email_verified", False):
+            raise HTTPException(
+                status_code=403,
+                detail="Email not verified. Please verify your email before creating API keys."
+            )
+            
         api_key = backend.create_api_key(user)
         return ApiKeyResponse(api_key=api_key)
     except Exception as e:
