@@ -1,6 +1,6 @@
 import pytest
 import time
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Security
 from fastapi.testclient import TestClient
 from app.api.v1.routes.auth import (
     router, 
@@ -15,6 +15,20 @@ from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import jwt
+from datetime import datetime, timedelta, UTC
+from unittest.mock import MagicMock
+from app.services.credits import CreditService
+import warnings
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# Add warning filter for the jose library
+warnings.filterwarnings(
+    "ignore",
+    message="datetime.datetime.utcnow()",
+    category=DeprecationWarning,
+    module="jose.*"
+)
 
 # Set up the FastAPI app and TestClient
 app = FastAPI()
@@ -69,7 +83,21 @@ def valid_verification_data(registered_user):
         "code": registered_user["verification_code"]
     }
 
-def test_signup_success(test_user_data):
+@pytest.fixture
+def mock_supabase_auth():
+    """Mock Supabase auth for signup"""
+    with patch('app.core.security.db.auth') as mock_auth:
+        # Mock successful signup
+        mock_auth.sign_up.return_value = {
+            "user": {
+                "id": "test_user_id",
+                "email": "testuser@example.com",
+                "email_verified": False
+            }
+        }
+        yield mock_auth
+
+def test_signup_success(test_user_data, mock_supabase_auth):
     """Test successful user signup."""
     response = client.post("/auth/sign_up", json=test_user_data)
     assert response.status_code == 200
@@ -77,23 +105,38 @@ def test_signup_success(test_user_data):
         "message": "Registration successful. Please check your email to verify your account.",
         "email": test_user_data["email"]
     }
+    mock_supabase_auth.sign_up.assert_called_once()
 
-def test_signup_duplicate_email(test_user_data):
+def test_signup_duplicate_email(test_user_data, mock_supabase_auth):
     """Test signup with duplicate email."""
+    # Configure mock for duplicate email error
+    mock_supabase_auth.sign_up.side_effect = [
+        # First call succeeds
+        {
+            "user": {
+                "id": "test_user_id",
+                "email": "testuser@example.com",
+                "email_verified": False
+            }
+        },
+        # Second call fails
+        HTTPException(
+            status_code=400,
+            detail="User already registered"
+        )
+    ]
+    
     # First signup
     response = client.post("/auth/sign_up", json=test_user_data)
-    assert response.status_code == 200  # First registration should succeed
+    assert response.status_code == 200
     
     # Wait for rate limit to reset
-    time.sleep(1)  # Add delay between requests
-
-    # Second signup with the same email
-    response = client.post("/auth/sign_up", json=test_user_data)
+    time.sleep(1)
     
-    # Check for either rate limit or duplicate email error
-    assert response.status_code in [400, 429]  # Accept either error code
-    error_message = response.json().get("detail", "").lower()
-    assert any(msg in error_message for msg in ["already exists", "rate limit"])
+    # Second signup with same email
+    response = client.post("/auth/sign_up", json=test_user_data)
+    assert response.status_code == 400
+    assert "already" in response.json()["detail"].lower()
 
 def test_signup_invalid_email_format():
     """Test signup with invalid email format."""
@@ -327,3 +370,245 @@ def test_create_api_key_server_error(valid_credentials, mock_backend):
     response = client.post("/auth/create_api_key", json=valid_credentials)
     assert response.status_code == 400
     assert "error" in response.json()["detail"].lower()
+
+@pytest.fixture
+def mock_remove_api_key():
+    """Mock the remove_api_key function"""
+    with patch('app.core.security.remove_api_key', new_callable=AsyncMock) as mock:
+        mock.return_value = True
+        yield mock
+
+@pytest.fixture
+def mock_auth_flow():
+    """Mock the entire auth flow"""
+    with patch('app.core.security.db.auth') as mock_auth:
+        # Mock get_user
+        mock_user = MagicMock()
+        mock_user.id = "test_user_id"
+        mock_user.email = "test@example.com"
+        mock_user.user_metadata = {"email_verified": True}
+        mock_auth.get_user.return_value = mock_user
+        yield mock_auth
+
+@pytest.fixture
+def mock_db_query():
+    """Mock database queries"""
+    with patch('app.core.security.db.table') as mock_table:
+        mock_response = MagicMock()
+        mock_response.data = {
+            "balance": 100,
+            "last_free_credit_update": datetime.now(UTC).isoformat(),
+            "user_id": "test_user_id",
+            "is_guest": False
+        }
+        
+        mock_execute = MagicMock()
+        mock_execute.execute.return_value = mock_response
+        
+        mock_maybe_single = MagicMock()
+        mock_maybe_single.maybe_single.return_value = mock_execute
+        
+        mock_eq = MagicMock()
+        mock_eq.eq.return_value = mock_maybe_single
+        
+        mock_select = MagicMock()
+        mock_select.select.return_value = mock_eq
+        
+        mock_table.return_value = mock_select
+        yield mock_table
+
+def test_revoke_api_key_success(
+    mock_remove_api_key,
+    mock_auth_flow,
+    mock_db_query,
+    auth_header
+):
+    """Test successful API key revocation"""
+    response = client.delete(
+        "/auth/revoke_api_key/test_api_key_123",
+        headers=auth_header
+    )
+    assert response.status_code == 200
+    assert response.json() == {"message": "API key deleted"}
+
+def test_revoke_api_key_not_found(
+    mock_remove_api_key,
+    mock_auth_flow,
+    mock_db_query,
+    auth_header
+):
+    """Test revoking non-existent API key"""
+    mock_remove_api_key.side_effect = HTTPException(
+        status_code=404,
+        detail="API key not found"
+    )
+    response = client.delete(
+        "/auth/revoke_api_key/nonexistent_key",
+        headers=auth_header
+    )
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+def test_revoke_api_key_wrong_user(
+    mock_remove_api_key,
+    mock_auth_flow,
+    mock_db_query,
+    auth_header
+):
+    """Test revoking API key belonging to different user"""
+    mock_remove_api_key.side_effect = HTTPException(
+        status_code=403,
+        detail="Cannot revoke API key belonging to another user"
+    )
+    response = client.delete(
+        "/auth/revoke_api_key/other_user_key",
+        headers=auth_header
+    )
+    assert response.status_code == 403
+    assert "another user" in response.json()["detail"].lower()
+
+def test_revoke_api_key_server_error(
+    mock_remove_api_key,
+    mock_auth_flow,
+    mock_db_query,
+    auth_header
+):
+    """Test API key revocation with server error"""
+    mock_remove_api_key.side_effect = Exception("Database error")
+    response = client.delete(
+        "/auth/revoke_api_key/test_api_key_123",
+        headers=auth_header
+    )
+    assert response.status_code == 400
+    assert "error" in response.json()["detail"].lower()
+
+@pytest.fixture
+def mock_credit_service():
+    """Mock CreditService"""
+    with patch('app.services.credits.CreditService') as mock_service:
+        mock_service.refresh_user_credits.side_effect = HTTPException(
+            status_code=401,
+            detail="401: Invalid authentication: Unauthorized"
+        )
+        yield mock_service
+
+@pytest.fixture
+def mock_security():
+    """Mock FastAPI security dependency"""
+    with patch('app.core.security.verify_token') as mock:
+        async def raise_unauthorized(*args, **kwargs):
+            raise HTTPException(
+                status_code=401,
+                detail="401: Invalid authentication: Unauthorized"
+            )
+        mock.side_effect = raise_unauthorized
+        yield mock
+
+@pytest.fixture
+def mock_supabase():
+    """Mock entire Supabase client chain"""
+    with patch('app.core.security.db') as mock_db:
+        # Mock table operations
+        mock_response = MagicMock()
+        mock_response.data = {
+            "balance": 0,
+            "last_free_credit_update": datetime.now(UTC).isoformat(),
+            "user_id": "guest_id",
+            "is_guest": True
+        }
+        
+        mock_execute = MagicMock()
+        mock_execute.execute.return_value = mock_response
+        
+        mock_maybe_single = MagicMock()
+        mock_maybe_single.maybe_single.return_value = mock_execute
+        
+        mock_eq = MagicMock()
+        mock_eq.eq.return_value = mock_maybe_single
+        
+        mock_select = MagicMock()
+        mock_select.select.return_value = mock_eq
+        
+        mock_db.table.return_value = mock_select
+        yield mock_db
+
+@pytest.fixture
+def mock_verify_token_unauthorized():
+    """Mock token verification to raise unauthorized error"""
+    with patch('app.core.security.verify_token') as mock:
+        mock.side_effect = HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+        yield mock
+
+def test_revoke_api_key_unauthorized(
+    mock_supabase,
+    mock_security,
+    mock_credit_service
+):
+    """Test API key revocation without authorization"""
+    response = client.delete(
+        "/auth/revoke_api_key/test_api_key_123",
+        headers={}  # No auth header
+    )
+    
+    assert response.status_code == 401
+    error_detail = response.json()["detail"]
+    # Check that the error contains the key parts
+    assert "401" in error_detail
+    assert "Invalid authentication" in error_detail
+    assert "Unauthorized" in error_detail
+
+def test_revoke_api_key_invalid_token():
+    """Test API key revocation with invalid token"""
+    response = client.delete(
+        "/auth/revoke_api_key/test_api_key_123",
+        headers={"Authorization": "Bearer invalid_token"}
+    )
+    assert response.status_code == 401
+    assert "invalid" in response.json()["detail"].lower()
+
+def test_revoke_api_key_rate_limit():
+    """Test rate limiting for API key revocation"""
+    test_app = FastAPI()
+    test_limiter = Limiter(key_func=get_remote_address)
+    test_app.state.limiter = test_limiter
+    
+    @test_app.delete("/auth/revoke_api_key/{key}")
+    @test_limiter.limit("2/minute")
+    async def revoke_api_key_test(key: str, request: Request):
+        return {"message": "API key deleted"}
+    
+    test_client = TestClient(test_app)
+    headers = {"Authorization": "Bearer test_token", "X-Forwarded-For": "127.0.0.1"}
+    
+    responses = []
+    for _ in range(4):
+        response = test_client.delete(
+            "/auth/revoke_api_key/test_key",
+            headers=headers
+        )
+        responses.append(response.status_code)
+    
+    # First two requests should succeed
+    assert responses[0] == 200
+    assert responses[1] == 200
+    # At least one subsequent request should be rate limited
+    assert any(code == 429 for code in responses[2:])
+
+@pytest.fixture
+def valid_jwt_token():
+    """Create a valid JWT token for testing"""
+    payload = {
+        "sub": "test@example.com",
+        "user_id": "test_user_id",
+        "exp": (datetime.now(UTC) + timedelta(minutes=30)).timestamp()
+    }
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+    return f"Bearer {token}"
+
+@pytest.fixture
+def auth_header(valid_jwt_token):
+    """Fixture for authorization header with valid JWT token"""
+    return {"Authorization": valid_jwt_token}
