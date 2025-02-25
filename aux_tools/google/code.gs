@@ -116,7 +116,7 @@ function processSelectedColumns(
     console.log("(Slices of) Ranked Ideas: \b", response.ranked_ideas.slice(0, 5), "\n[...]\n", response.ranked_ideas.slice(-10));
     console.log("Has similarity matrix? : ", Boolean(response.pairwise_similarity_matrix));
     console.log("Has cluster names? : ", Boolean(response.cluster_names));
-    displayResults(response, selections.resultCount);
+    displayResults(response, selections.resultCount, selections);
   }
 }
 
@@ -146,7 +146,7 @@ function callSimScoreApi(requestData) {
   }
 }
 
-function displayResults(response, numRankedResults) {
+function displayResults(response, numRankedResults, selections) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // Format ranked ideas
@@ -165,7 +165,7 @@ function displayResults(response, numRankedResults) {
 
   console.log("Ranked Data: ", rankedData.slice(0,5), rankedData.slice(-5))
 
-  const rankingsSheet = createRankedSheet(ss, rankedData, numRankedResults)
+  const rankingsSheet = createRankedSheet(ss, rankedData, numRankedResults, selections)
 
   if (response.relationship_graph) {
     createBubbleChart(response, rankingsSheet, rankedData, numRankedResults);
@@ -178,7 +178,7 @@ function displayResults(response, numRankedResults) {
   ss.setActiveSheet(ss.getSheetByName("SimScore Rankings"))
 }
 
-function createRankedSheet(ss, rankedData, numRankedResults) {
+function createRankedSheet(ss, rankedData, numRankedResults, selections) {
     
   // Create Rankings Sheet
   let rankingsSheet = ss.getSheetByName("SimScore Rankings");
@@ -191,11 +191,11 @@ function createRankedSheet(ss, rankedData, numRankedResults) {
   // Headers for rankings
   const headers = [
     "Priority",
-    "Idea",
-    "Author",
+    selections.ideaColumn,
+    selections.authorColumn || 'Author',
     "Similarity Score",
     "Cluster",
-    "ID",
+    selections.idColumn || "ID",
   ];
   rankingsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
@@ -207,7 +207,7 @@ function createRankedSheet(ss, rankedData, numRankedResults) {
     // Format similarity score column (column 4) to show 2 decimal places
     rankingsSheet
       .getRange(2, 4, rankedData.slice(0, numRankedResults).length, 1)
-      .setNumberFormat("0.00");
+      .setNumberFormat("0%");
   }
   return rankingsSheet;
 }
@@ -231,7 +231,7 @@ function createBubbleChart(response, sheet, rankedData, numRankedResults) {
     chartData.push([
       node.coordinates.x,
       node.coordinates.y,
-      node.id.toString(),
+      index + 1,
       similarity,
     ]);
 
@@ -260,17 +260,11 @@ function createBubbleChart(response, sheet, rankedData, numRankedResults) {
     .setOption("height", 600)
     .setOption("width", 800)
     .setOption("series", colorMap)
-    .setOption("tooltip", {
-      trigger: "focus",
-      textStyle: { fontSize: 12 },
-      showColorCode: false,
-      ignoreBounds: false
-    })
-    // Hide other columns from tooltip
     .setOption("hAxis", { textPosition: "none" })
     .setOption("vAxis", { textPosition: "none" })
     .setPosition(3, chartRange.getColumn() + chartRange.getNumColumns() + 1, 0, 0)
     .build();
+
   sheet.insertChart(chart);
 }
 
