@@ -58,7 +58,7 @@ function getApiUrl() {
 }
 
 function processSelectedColumns(
-  selections = { idColumn: "ID#", ideaColumn: "ideas", authorColumn: "author" }
+  selections = { idColumn: "ID", ideaColumn: "Challenge need", authorColumn: "Company", resultCount: 10 }
 ) {
   const sheet = SpreadsheetApp.getActiveSheet();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -116,7 +116,7 @@ function processSelectedColumns(
     console.log("(Slices of) Ranked Ideas: \b", response.ranked_ideas.slice(0, 5), "\n[...]\n", response.ranked_ideas.slice(-10));
     console.log("Has similarity matrix? : ", Boolean(response.pairwise_similarity_matrix));
     console.log("Has cluster names? : ", Boolean(response.cluster_names));
-    displayResults(response);
+    displayResults(response, selections.resultCount);
   }
 }
 
@@ -146,9 +146,40 @@ function callSimScoreApi(requestData) {
   }
 }
 
-function displayResults(response) {
+function displayResults(response, numRankedResults) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // Format ranked ideas
+  const rankedData = response.ranked_ideas.map((item, index) => {
+    const clusterName =
+      response.cluster_names?.find((c) => c.id === item.cluster_id)?.name || item.cluster_id;
+    return [
+      "# " + (index + 1),
+      item.idea,
+      item.author_id || "",
+      item.similarity_score,
+      clusterName,
+      item.id,
+    ];
+  });
+
+  console.log("Ranked Data: ", rankedData.slice(0,5), rankedData.slice(-5))
+
+  const rankingsSheet = createRankedSheet(ss, rankedData, numRankedResults)
+
+  if (response.relationship_graph) {
+    createBubbleChart(response, rankingsSheet, rankedData, numRankedResults);
+  }
+
+  if (response.pairwise_similarity_matrix) {
+    createMatrixSheet(ss, response)
+  }
+
+  ss.setActiveSheet(ss.getSheetByName("SimScore Rankings"))
+}
+
+function createRankedSheet(ss, rankedData, numRankedResults) {
+    
   // Create Rankings Sheet
   let rankingsSheet = ss.getSheetByName("SimScore Rankings");
   if (rankingsSheet) {
@@ -160,44 +191,91 @@ function displayResults(response) {
   // Headers for rankings
   const headers = [
     "Priority",
-    "ID",
     "Idea",
     "Author",
     "Similarity Score",
     "Cluster",
+    "ID",
   ];
   rankingsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
-  // Format ranked ideas
-  const rankedData = response.ranked_ideas.map((item, index) => {
-    const clusterName =
-      response.cluster_names?.find((c) => c.id === item.cluster_id)?.name || item.cluster_id;
-    return [
-      "# " + (index + 1),
-      item.id,
-      item.idea,
-      item.author_id || "",
-      item.similarity_score,
-      clusterName,
-    ];
-  });
-
-  console.log("Ranked Data: ", rankedData.slice(0,5), rankedData.slice(-5))
-
   if (rankedData.length > 0) {
     rankingsSheet
-      .getRange(2, 1, rankedData.length, rankedData[0].length)
-      .setValues(rankedData);
+      .getRange(2, 1, rankedData.slice(0, numRankedResults).length, rankedData[0].length)
+      .setValues(rankedData.slice(0, numRankedResults));
+  
+    // Format similarity score column (column 4) to show 2 decimal places
+    rankingsSheet
+      .getRange(2, 4, rankedData.slice(0, numRankedResults).length, 1)
+      .setNumberFormat("0.00");
   }
+  return rankingsSheet;
+}
 
+function createBubbleChart(response, sheet, rankedData, numRankedResults) {
+  // Data for the chart - in required API order
+  const chartData = [["X", "Y", "Priority", "Similarity"]];
+  const colorMap = {};
 
-  if (response.relationship_graph) {
-    createScatterPlot(response, rankingsSheet, rankedData);
-  }
+  const topScores = response.ranked_ideas
+    .slice(0, numRankedResults)
+    .map(i => i.similarity_score);
+  const minTopScore = Math.min(...topScores);
 
-  // Create Matrix Sheet if available
-  if (response.pairwise_similarity_matrix) {
-    let matrixSheet = ss.getSheetByName("SimScore Matrix");
+  response.relationship_graph.nodes.forEach((node, index) => {
+    const idea = response.ranked_ideas.find((i) => i.id === node.id);
+    const similarity = idea ? idea.similarity_score : 1.0;
+    const isPriority = index < numRankedResults;
+
+    // Add data point
+    chartData.push([
+      node.coordinates.x,
+      node.coordinates.y,
+      node.id.toString(),
+      similarity,
+    ]);
+
+    const t = isPriority // don't use similarity for the top results
+      ? 1 - ((index+1) / numRankedResults) * (1-minTopScore-0.1)  // This keeps t between 1.0 and 0.1 higher than minTopScore for priority items
+      : similarity;
+      
+    let color = "#" +
+      Math.round(251 - (isPriority ? 251 : 185) * t).toString(16).padStart(2, "0") +
+      Math.round(188 - (isPriority ? 188 : 55) * t).toString(16).padStart(2, "0") +
+      Math.round(4 + (isPriority ? 250 : 240) * t).toString(16).padStart(2, "0");
+
+    colorMap[index] = { color };
+  });
+  
+  const chartRange = sheet.getRange(1, rankedData[0].length + 2, chartData.length, chartData[0].length);
+  chartRange.setValues(chartData);
+  sheet.hideColumns(chartRange.getColumn(), chartRange.getNumColumns());
+
+  const chart = sheet
+    .newChart()
+    .setChartType(Charts.ChartType.BUBBLE)
+    .addRange(chartRange)
+    .setOption("title", "Similarity to the most similar point")
+    .setOption("subtitle", `(Top ${numRankedResults} colors enhanced)`)
+    .setOption("height", 600)
+    .setOption("width", 800)
+    .setOption("series", colorMap)
+    .setOption("tooltip", {
+      trigger: "focus",
+      textStyle: { fontSize: 12 },
+      showColorCode: false,
+      ignoreBounds: false
+    })
+    // Hide other columns from tooltip
+    .setOption("hAxis", { textPosition: "none" })
+    .setOption("vAxis", { textPosition: "none" })
+    .setPosition(3, chartRange.getColumn() + chartRange.getNumColumns() + 1, 0, 0)
+    .build();
+  sheet.insertChart(chart);
+}
+
+function createMatrixSheet(ss, response) {
+  let matrixSheet = ss.getSheetByName("SimScore Matrix");
     if (matrixSheet) {
       matrixSheet.clear();
     } else {
@@ -241,50 +319,4 @@ function displayResults(response) {
       .build();
 
     matrixSheet.setConditionalFormatRules([rule]);
-  }
-}
-
-function createScatterPlot(response, sheet, rankedData) {
-  // Data for the chart - in required API order
-  const chartData = [["X", "Y", "ID", "Similarity"]];
-  const colorMap = {};
-  response.relationship_graph.nodes.forEach((node, index) => {
-    const idea = response.ranked_ideas.find((i) => i.id === node.id);
-    const similarity = idea ? idea.similarity_score : 1.0;
-
-    // Add data point
-    chartData.push([
-      node.coordinates.x,
-      node.coordinates.y,
-      node.id.toString(),
-      similarity,
-    ]);
-
-    // Calculate color using index instead of ID
-    const t = similarity;
-    let color = "#" +
-        Math.round(251 - 185 * t).toString(16).padStart(2, "0") +
-        Math.round(188 - 55 * t).toString(16).padStart(2, "0") +
-        Math.round(4 + 240 * t).toString(16).padStart(2, "0")
-    
-    colorMap[index] = { color };
-  });
-  
-  console.log(colorMap.slice(0, 5), colorMap.slice(-5));
-
-  const chartRange = sheet.getRange(1, rankedData[0].length, chartData.length, chartData[0].length);
-  chartRange.setValues(chartData);
-  sheet.hideColumns(chartRange.getColumn(), chartRange.getNumColumns());
-
-  const chart = sheet
-    .newChart()
-    .setChartType(Charts.ChartType.BUBBLE)
-    .addRange(chartRange)
-    .setOption("title", "Similarity to the most similar point")
-    .setOption("height", 600)
-    .setOption("width", 800)
-    .setOption("series", colorMap)
-    .setPosition(3, chartRange.getColumn() + chartRange.getNumColumns() + 1, 0, 0)
-    .build();
-  sheet.insertChart(chart);
 }
