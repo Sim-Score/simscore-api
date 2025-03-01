@@ -1,5 +1,6 @@
 from pydantic_settings import SettingsConfigDict, BaseSettings
 from typing import Dict, TypedDict
+import os
 
 class OperationCost(TypedDict):
     base_cost: float
@@ -55,6 +56,8 @@ class Settings(BaseSettings):
     
     # Test Configuration
     SKIP_EMAIL_VERIFICATION: bool = False
+    
+    TEST_API_TOKEN: str = os.getenv("TEST_API_TOKEN", "test-api-token-for-unit-tests")
     
     model_config = SettingsConfigDict(env_file=".env")
 

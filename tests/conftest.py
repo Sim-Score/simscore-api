@@ -192,20 +192,20 @@ def auth_headers(test_user):
 
 @pytest.fixture
 def mock_verify_token(monkeypatch):
-    """Mock token verification"""
-    class MockCredits:
-        data = {"credits": 100}
+    """Mock the token verification to return a test user"""
     
-    async def mock_verify(credentials):
+    async def mock_verify(request=None, credentials=None):
+        # Return a mock user without actually verifying the token
         return {
-            "user_id": "test_user",
+            "user_id": "test-user-id",
+            "email": "test@example.com",
             "email_verified": True,
-            "credits": MockCredits(),
-            "data": {"credits": 100}
+            "is_guest": False,
+            "credits": 100
         }
     
+    # Properly monkeypatch the dependency function
     monkeypatch.setattr("app.api.v1.dependencies.auth.verify_token", mock_verify)
-    monkeypatch.setattr("app.core.security.verify_token", mock_verify)
     return mock_verify
 
 @pytest.fixture

@@ -8,7 +8,6 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import HTTPException, Request, Security
 from .db import db
 from .config import settings
-from gotrue.types import AdminUserAttributes
 
 security = HTTPBearer(auto_error=False) # Authentication is optional!
 
@@ -46,27 +45,6 @@ async def authenticate_user(email: str, password: str):
 
 async def verify_email_code(email: str, code: str):
     try:
-        # Skip verification in test environment
-        if settings.ENVIRONMENT == "DEV" and settings.SKIP_EMAIL_VERIFICATION:
-            print("Test environment detected - skipping email verification")
-            # Get user and update metadata
-            users = db.auth.admin.list_users()
-            user = next((u for u in users if u.email == email), None)
-            if user:
-                print(f"Found user: {user.email}, updating metadata")
-                try:
-                    # Create UserAttributes object with email_confirmed_at field
-                    user_attributes = AdminUserAttributes(
-                        email_confirmed_at=datetime.now(timezone.utc)
-                    )
-                    
-                    # Update the user with the attributes
-                    db.auth.admin.update_user_by_id(user.id, user_attributes)
-                    print("Updated user metadata")
-                except Exception as e:
-                    print(f"Error updating user metadata: {str(e)}")
-                return True
-            
         # Regular verification logic
         db.auth.verify_otp({
             "email": email, 
