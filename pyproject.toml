@@ -32,6 +32,7 @@ supabase = "^2.11.0"
 supabase-pydantic = "^0.15.2"
 apscheduler = "^3.11.0"
 httpx = "^0.28.1"
+pytest-ordering = "^0.6"
 
 
 [tool.poetry.group.dev.dependencies]

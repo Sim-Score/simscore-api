@@ -3,6 +3,10 @@ from pathlib import Path
 import pytest
 from typing import List, Tuple, Dict
 from jose import jwt
+from app.core.db import db
+from datetime import datetime, UTC
+from app.core.config import settings
+import time
 
 # Add project root to Python path
 project_root = str(Path(__file__).parent.parent)
@@ -11,7 +15,6 @@ sys.path.insert(0, project_root)
 # Now we can import from app
 from app.api.v1.models.request import IdeaInput
 from app.services.types import Results, PlotData, RankedIdea, ClusterName
-from app.core.config import settings
 
 # Configure pytest-asyncio
 def pytest_configure(config):
@@ -154,19 +157,35 @@ def _generate_realistic_similarity_matrix(size: int) -> List[List[float]]:
     return [row[:size] for row in base_matrix[:size]]
 
 @pytest.fixture
-def auth_headers():
+def test_user():
+    """Generate unique test user credentials"""
+    timestamp = int(datetime.now(UTC).timestamp())
+    return {
+        "email": f"test_{timestamp}@example.com",
+        "password": "SecureTestPass123!"
+    }
+
+@pytest.fixture
+def client():
+    """Create a test client that connects to the running server"""
+    import httpx
+    with httpx.Client(base_url="http://localhost:8000", timeout=30.0) as client:
+        yield client
+
+@pytest.fixture
+def auth_headers(test_user):
     """Fixture for authentication headers"""
     from jose import jwt
-    from app.core.config import settings
     
     # Create a valid JWT token
     token = jwt.encode(
         {
             "user_id": "test_user",
-            "credits": 100,
-            "data": {"credits": 100}
+            "email": test_user["email"],
+            "is_guest": False,
+            "email_verified": True
         },
-        settings.SECRET_KEY,  # Use the same secret key as in your app
+        settings.SECRET_KEY,
         algorithm="HS256"
     )
     return {"Authorization": f"Bearer {token}"}
@@ -178,14 +197,13 @@ def mock_verify_token(monkeypatch):
         data = {"credits": 100}
     
     async def mock_verify(credentials):
-        # Don't try to verify the actual token, just return mock data
         return {
             "user_id": "test_user",
+            "email_verified": True,
             "credits": MockCredits(),
             "data": {"credits": 100}
         }
     
-    # Mock both the dependency and the security function
     monkeypatch.setattr("app.api.v1.dependencies.auth.verify_token", mock_verify)
     monkeypatch.setattr("app.core.security.verify_token", mock_verify)
     return mock_verify
@@ -236,3 +254,32 @@ def mock_summarize_clusters_realistic(monkeypatch):
         ]
     
     monkeypatch.setattr("app.services.clustering.summarize_clusters", mock_summarize)
+
+@pytest.fixture
+def verified_test_user(test_user):
+    """Create a test user that's considered verified"""
+    return test_user
+
+@pytest.fixture
+def is_local_supabase():
+    """Check if we're using local Supabase"""
+    return "127.0.0.1" in settings.DATABASE_URL or "localhost" in settings.DATABASE_URL
+
+@pytest.fixture
+def is_test_env():
+    """Check if we're in test environment with verification disabled"""
+    return settings.ENVIRONMENT == "DEV" and settings.SKIP_EMAIL_VERIFICATION
+
+@pytest.fixture(autouse=True)
+def disable_limiter():
+    """Disable rate limiting during tests"""
+    from app.core.limiter import limiter
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    """Reset rate limits between test sessions"""
+    yield
+    time.sleep(1)  # Small delay between tests

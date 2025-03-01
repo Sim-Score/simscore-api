@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     USER_DAILY_CREDITS: int
     USER_MAX_CREDITS: int
     
+    # Environment
+    ENVIRONMENT: str = "DEV"
+    
+    # Test Configuration
+    SKIP_EMAIL_VERIFICATION: bool = False
+    
     model_config = SettingsConfigDict(env_file=".env")
 
 settings = Settings()

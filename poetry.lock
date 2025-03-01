@@ -4001,6 +4001,21 @@ docs = ["sphinx (>=5.3)", "sphinx-rtd-theme (>=1)"]
 testing = ["coverage (>=6.2)", "hypothesis (>=5.7.1)"]
 
 [[package]]
+name = "pytest-ordering"
+version = "0.6"
+description = "pytest plugin to run your tests in a specific order"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pytest-ordering-0.6.tar.gz", hash = "sha256:561ad653626bb171da78e682f6d39ac33bb13b3e272d406cd555adb6b006bda6"},
+    {file = "pytest_ordering-0.6-py2-none-any.whl", hash = "sha256:27fba3fc265f5d0f8597e7557885662c1bdc1969497cd58aff6ed21c3b617de2"},
+    {file = "pytest_ordering-0.6-py3-none-any.whl", hash = "sha256:3f314a178dbeb6777509548727dc69edf22d6d9a2867bf2d310ab85c403380b6"},
+]
+
+[package.dependencies]
+pytest = "*"
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -5477,4 +5492,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "ec849fe0308037a39cd72e2aa6c0470711aa58c84409c751bdc8a5723b5c77b9"
+content-hash = "24ba21db507f37cf0499eb59d00abf2df9bb317cf8851b6cf8a10e6fa1083d29"

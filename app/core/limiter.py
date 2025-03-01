@@ -12,14 +12,14 @@ from slowapi.util import get_remote_address
 from app.core.config import settings
 
 def get_identifier(request):
-  """Get unique identifier for rate limiting based on auth status"""
-  if "authorization" in request.headers:
-      return request.headers["authorization"]
-  return get_remote_address(request)
+    """Get unique identifier for rate limiting based on auth status"""
+    if "authorization" in request.headers:
+        return request.headers["authorization"]
+    return get_remote_address(request)
 
 limiter = Limiter(
-  key_func=get_identifier,
-  default_limits=[settings.RATE_LIMIT_PER_USER],
-  strategy="fixed-window",
-  storage_uri="memory://",  # if we have auto-scaling / multiple servers we'd want to change this to a database
+    key_func=get_identifier,
+    default_limits=[settings.RATE_LIMIT_PER_USER],
+    strategy="fixed-window",
+    storage_uri="memory://"  # Use memory storage for testing
 )
