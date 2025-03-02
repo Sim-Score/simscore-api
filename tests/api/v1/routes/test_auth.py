@@ -15,7 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-import jwt
+from jose import jwt
 from datetime import datetime, timedelta, UTC
 from unittest.mock import MagicMock
 from app.services.credits import CreditService

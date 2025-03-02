@@ -107,7 +107,7 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
         user = await backend.authenticate_user(credentials.email, credentials.password)
         log = f"User authenticated: {user}"
         print(f"User authenticated: {user}")
-        print(f"User metadata: {user.user_metadata}")
+        print(f"User metadata: {user["user_metadata"]}")
         
         # Skip verification check in test environment
         if not (settings.ENVIRONMENT == "DEV" and settings.SKIP_EMAIL_VERIFICATION):
