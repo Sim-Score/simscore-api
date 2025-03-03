@@ -45,7 +45,7 @@ async def authenticate_user(email: str, password: str):
 async def verify_email_code(email: str, code: str):
     try:
         # Verify the code against stored verification code
-        db.auth.verify_otp({"email": email, "token": code, "type": "email"})
+        db.auth.verify_otp({"email": email, "token": code, "type": "email", "options": { "redirect_to": settings.PROJECT_URL + settings.API_V1_STR + "/docs"}})
         return True
         
     except Exception as e:
