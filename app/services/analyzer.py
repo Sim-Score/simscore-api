@@ -25,6 +25,8 @@ def init_nltk_resources():
     # Ensure NLTK resources are available, but check only once a day:
 
     cache_file = os.path.join(os.path.dirname(__file__), '.nltk_resources_cache')
+    print(f"Cache file path: {cache_file}")
+    print(f"Cache file exists? {os.path.exists(cache_file)}")
     current_time = time.time()
 
     # Check if cache file exists and is less than a week old
@@ -32,7 +34,7 @@ def init_nltk_resources():
         with open(cache_file, 'r') as f:
             last_execution = float(f.read().strip())
         if current_time - last_execution < 86400 * 7:  # 86400 seconds = 24 hours
-            print("NLTK resources already initialized within the last week.")
+            print("NLTK resources already initialized within the last week: ", time.ctime(last_execution))
             return
 
     print("Initializing NLTK resources...")
