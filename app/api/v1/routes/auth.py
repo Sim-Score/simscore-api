@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from typing import List
 import app.core.security as backend
+from app.core.limiter import limiter  # Import from your limiter module
+from app.core.config import settings
 
 # Request/Response Models
 class UserCredentials(BaseModel):
@@ -30,12 +32,16 @@ class EmailVerification(BaseModel):
 
 router = APIRouter(tags=["auth"])
 
+print(f"Router prefix: {router.prefix}")  # See what prefix is being used
+
 @router.post("/auth/sign_up", response_model=SignupResponse)
-async def signup(credentials: UserCredentials) -> SignupResponse:
+@limiter.limit("5/minute")  # Use slowapi limiter
+async def signup(request: Request, credentials: UserCredentials) -> SignupResponse:
     """
     Register a new user account.
     
     Args:
+        request: FastAPI request object
         credentials: User email and password
         
     Returns:
@@ -51,6 +57,7 @@ async def signup(credentials: UserCredentials) -> SignupResponse:
             email=credentials.email
         )
     except Exception as e:
+        print("Failed: ", str(e))
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=400, detail=str(e))
@@ -69,7 +76,7 @@ async def verify_email(verification: EmailVerification) -> MessageResponse:
     Raises:
         HTTPException: 400 if verification fails
     """
-    try:
+    try:   
         await backend.verify_email_code(verification.email, verification.code)
         return MessageResponse(message="Email successfully verified")
     except Exception as e:
@@ -93,13 +100,40 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
         HTTPException: 400 if creation fails, 401 if authentication fails
     """
     try:
+        print("\nCreate API key endpoint hit!")  # See if we reach this endpoint
+        print(f"Creating API key for {credentials.email}")
+        print("\nCreating API key...")
+        print(f"Test environment: {settings.ENVIRONMENT == 'DEV'}; SKIP EMAIL VERIFICATION: {settings.SKIP_EMAIL_VERIFICATION}")
+        log = f"Authenticating user {credentials.email} with password {credentials.password}"
         user = await backend.authenticate_user(credentials.email, credentials.password)
+        log = f"User authenticated: {user}"
+        print(f"User authenticated: {user}")
+        print(f"User metadata: {user.user_metadata}")
+        
+        # Skip verification check in test environment
+        if not (settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION):
+            log = "Checking if email is verified"
+            # Check if email is verified (only in non-test environment)
+            if not user.user_metadata["email_verified"]:
+                log = "Email not verified"
+                raise HTTPException(
+                    status_code=403,
+                    detail="Email not verified. Please verify your email before creating API keys."
+                )
+        else:
+            log = "Test environment - skipping email verification check"
+            print("Test environment - skipping email verification check")
+            
+        log = "Creating API key"
         api_key = backend.create_api_key(user)
+        log = f"API key created: {api_key}"
+        print(f"API key created: {api_key}")
         return ApiKeyResponse(api_key=api_key)
     except Exception as e:
+        print(f"API key creation error: {str(e)}")
         if isinstance(e, HTTPException):
             raise e
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=log)
 
 @router.delete("/auth/revoke_api_key/{key}", response_model=MessageResponse)
 async def delete_api_key(

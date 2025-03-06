@@ -329,3 +329,7 @@ This often helps to run supabase.
 
 Then, to work with it locally, you can access the local instance's info with `supabase status` and use those to manage it (and e.g. set .env vars).
 The **Studio URL** gives you a graphical interface to supabase, and with **Inbucket URL** is a local email smtp server where you can test email signup.
+
+## Testing
+
+For detailed testing instructions, see [TESTING.md](TESTING.md).
