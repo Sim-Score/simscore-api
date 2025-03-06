@@ -25,6 +25,22 @@ def test_user():
 def test_signup_flow(client, test_user):
     """Test basic signup without verification"""
     response = client.post("/v1/auth/sign_up", json=test_user)
+    
+    # Print detailed debug information
+    print(f"\nTest user: {test_user}")
+    print(f"Status code: {response.status_code}")
+    try:
+        response_json = response.json()
+        print(f"Response body: {response_json}")
+        
+        # Check if there's a specific error message
+        if "detail" in response_json:
+            print(f"Error detail: {response_json['detail']}")
+    except Exception as e:
+        print(f"Error parsing response: {e}")
+        print(f"Raw response: {response.text}")
+    
+    # Original assertions
     assert response.status_code == 200
     assert "message" in response.json()
     assert "email" in response.json()

@@ -130,8 +130,18 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
             if is_guest:
                 return generate_guest_id(request)
                 
+            # Fix: When in test environment, we need to use a safe way to get user_id
+            # If we have credentials, try to decode them, otherwise use a test value
+            user_id = "test_user"
+            if credentials:
+                try:
+                    decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
+                    user_id = decoded.get("user_id", "test_user")
+                except:
+                    pass
+                
             return {
-                "user_id": decoded["user_id"] if credentials else "test_user",
+                "user_id": user_id,
                 "is_guest": False,
                 "email_verified": True,  # Always verified in tests
                 "balance": settings.USER_MAX_CREDITS
