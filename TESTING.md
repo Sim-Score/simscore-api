@@ -27,7 +27,7 @@ tests/
 
 ```
 # Environment
-ENVIRONMENT=DEV
+ENVIRONMENT=TEST
 
 # API Configuration
 RATE_LIMIT_PER_USER=20/minute
