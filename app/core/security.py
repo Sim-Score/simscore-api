@@ -19,10 +19,14 @@ async def create_user(email: str, password: str):
     
 async def authenticate_user(email: str, password: str):
     print("Auth'ing")
-    session = db.auth.sign_in_with_password({
+    try:
+      session = db.auth.sign_in_with_password({
         "email": email,
         "password": password
-    })
+      })  
+    except Exception as e:
+      raise HTTPException(status_code=401, detail="This user or password does not exist.")
+    
     print("Auth'ed")
     user = session.user
     

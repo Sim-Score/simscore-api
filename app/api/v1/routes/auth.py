@@ -57,6 +57,7 @@ async def signup(request: Request, credentials: UserCredentials) -> SignupRespon
             email=credentials.email
         )
     except Exception as e:
+        print("Failed: ", str(e))
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=400, detail=str(e))
@@ -102,18 +103,18 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
         print("\nCreate API key endpoint hit!")  # See if we reach this endpoint
         print(f"Creating API key for {credentials.email}")
         print("\nCreating API key...")
-        print(f"Test environment: {settings.ENVIRONMENT == 'DEV' and settings.SKIP_EMAIL_VERIFICATION}")
+        print(f"Test environment: {settings.ENVIRONMENT == 'DEV'}; SKIP EMAIL VERIFICATION: {settings.SKIP_EMAIL_VERIFICATION}")
         log = f"Authenticating user {credentials.email} with password {credentials.password}"
         user = await backend.authenticate_user(credentials.email, credentials.password)
         log = f"User authenticated: {user}"
         print(f"User authenticated: {user}")
-        print(f"User metadata: {user["user_metadata"]}")
+        print(f"User metadata: {user.user_metadata}")
         
         # Skip verification check in test environment
-        if not (settings.ENVIRONMENT == "DEV" and settings.SKIP_EMAIL_VERIFICATION):
+        if not (settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION):
             log = "Checking if email is verified"
             # Check if email is verified (only in non-test environment)
-            if not user.get("user_metadata", {}).get("email_verified", False):
+            if not user.user_metadata["email_verified"]:
                 log = "Email not verified"
                 raise HTTPException(
                     status_code=403,
