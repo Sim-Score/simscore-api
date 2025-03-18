@@ -167,10 +167,8 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
               key_id = decoded["key_id"]
               # Verify key hasn't been removed
               results = db.table("api_keys").select('*').eq('key_id', key_id).execute()
-              if results.data and results.data[0]:
-                key = results.data[0]
-              if not key:
-                  raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
+              if not results.data or not results.data[0]:
+                raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
           else:
             user = db.auth.get_user(credentials.credentials)
           
