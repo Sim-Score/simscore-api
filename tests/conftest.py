@@ -268,7 +268,7 @@ def is_local_supabase():
 @pytest.fixture
 def is_test_env():
     """Check if we're in test environment with verification disabled"""
-    return settings.ENVIRONMENT == "DEV" and settings.SKIP_EMAIL_VERIFICATION
+    return settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION
 
 @pytest.fixture(autouse=True)
 def disable_limiter():

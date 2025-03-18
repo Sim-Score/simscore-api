@@ -103,7 +103,7 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
         print("\nCreate API key endpoint hit!")  # See if we reach this endpoint
         print(f"Creating API key for {credentials.email}")
         print("\nCreating API key...")
-        print(f"Test environment: {settings.ENVIRONMENT == 'DEV'}; SKIP EMAIL VERIFICATION: {settings.SKIP_EMAIL_VERIFICATION}")
+        print(f"Test environment: {settings.ENVIRONMENT == 'TEST'}; SKIP EMAIL VERIFICATION: {settings.SKIP_EMAIL_VERIFICATION}")
         log = f"Authenticating user {credentials.email} with password {credentials.password}"
         user = await backend.authenticate_user(credentials.email, credentials.password)
         log = f"User authenticated: {user}"

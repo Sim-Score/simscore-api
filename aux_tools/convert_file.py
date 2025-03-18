@@ -32,14 +32,14 @@ def convert_harmonica_to_request(
         for i, text in enumerate(parts):
             speaker = "user" if i % 2 == 0 else "assistant"
             paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
-                    
-            for para in paragraphs:
-                ideas.append(IdeaInput(
-                    id=str(idea_id),
-                    idea=para,
-                    author_id=f"{user_name}_{speaker}"
-                ))
-                idea_id += 1        
+            if speaker == "user":        
+              for para in paragraphs:
+                  ideas.append(IdeaInput(
+                      id=str(idea_id),
+                      idea=para,
+                      author_id=f"{user_name}_{speaker}"
+                  ))
+                  idea_id += 1        
     
     return IdeaRequest(
         ideas=ideas,
@@ -181,11 +181,11 @@ if __name__ == "__main__":
         # Write request to file
         output_file = "request.json"
         with open(output_file, "w") as f:
-            json.dump(request.dict(), f, indent=2)
+            json.dump(request.model_dump(), f, indent=2)
         print(f"Request written to {output_file}")
         
         if args.save_as_spreadsheet:
-            convert_request_to_spreadsheet(request.dict(), "output.xlsx")
+            convert_request_to_spreadsheet(request.model_dump(), "output.xlsx")
 
     except Exception as e:
         print(f"Error: {str(e)}")

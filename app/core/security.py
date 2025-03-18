@@ -124,7 +124,7 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
     """Verify JWT token and return user info with credits"""          
     try:
         # Skip email verification in test environment
-        if settings.ENVIRONMENT == "DEV" and settings.SKIP_EMAIL_VERIFICATION:
+        if settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION:
             print("Test environment detected - skipping email verification")
             is_guest = not credentials
             if is_guest:

@@ -147,9 +147,9 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 # Uncomment to customize email template
-[auth.email.template.confirmation]
-subject = "SimScore - Email Verification"
-content_path = "./supabase/templates/email_verification.html"
+# [auth.email.template.confirmation]
+# subject = "SimScore - Email Verification"
+# content_path = "./supabase/templates/email_verification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
