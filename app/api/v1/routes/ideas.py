@@ -180,11 +180,11 @@ async def process_advanced_features(
         response["relationship_graph"] = build_relationship_graph(
             response["ranked_ideas"], plot_data
         )
-        CreditService.deduct_credits(user_id, "relationship_graph", num_ideas, total_bytes)
+        await CreditService.deduct_credits(user_id, "relationship_graph", num_ideas, total_bytes)
     
     if request.advanced_features.cluster_names:
         response["cluster_names"] = await summarize_clusters(response["ranked_ideas"])
-        CreditService.deduct_credits(user_id, "cluster_names", num_ideas, total_bytes)
+        await CreditService.deduct_credits(user_id, "cluster_names", num_ideas, total_bytes)
            
     if request.advanced_features.pairwise_similarity_matrix:
         response["pairwise_similarity_matrix"] = plot_data["pairwise_similarity"]

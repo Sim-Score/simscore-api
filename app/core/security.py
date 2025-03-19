@@ -154,8 +154,7 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
           user = generate_guest_id(request)
           user["email_verified"] = True
         else:
-          print("Credentials supplied, decoding token: ", credentials)
-          print(settings.SECRET_KEY)  # TODO: REMOVE THIS AGAIN!
+          print("Credentials supplied, decoding token...")
           decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
           # Check if token is API key
           if decoded.get("token_type") == "api_key":
