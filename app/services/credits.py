@@ -33,7 +33,7 @@ class CreditService:
     async def deduct_credits(user_id: str, operation: str, data_size: int, bytes: int) -> bool:
         """Deduct credits after successful operation"""
         cost = await CreditService.get_operation_cost(operation, data_size, bytes)
-        print(f"Deducting {cost} credits for {operation} with {data_size} statements and a total of {bytes} bytes")
+        print(f"Deducting {cost} credits from {user_id} for {operation} with {data_size} statements and a total of {bytes} bytes")
         result = db.rpc(
             'deduct_credits',
             {

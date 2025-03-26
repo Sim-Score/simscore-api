@@ -166,7 +166,9 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
                   }
               key_id = decoded["key_id"]
               # Verify key hasn't been removed
+              print("Got key_id: ", key_id)
               results = db.table("api_keys").select('*').eq('key_id', key_id).execute()
+              print("Results: " + str(results))
               if not results.data or not results.data[0]:
                 raise HTTPException(status_code=401, detail="API key not found (it may have been removed)")
           else:
@@ -197,7 +199,8 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
             }).execute()  
             
         from app.services.credits import CreditService
-        balance = await CreditService.refresh_user_credits(user_id, is_guest, credits)        
+        balance = await CreditService.refresh_user_credits(user_id, is_guest, credits)
+        print("Updated user balance: ", balance)        
         return {
             "user_id": user_id,
             "is_guest": is_guest,
