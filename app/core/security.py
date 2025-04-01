@@ -180,7 +180,7 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
         print("getting credits for user:", user_id)
         credits = db.table('credits').select('*').eq('user_id', user_id).maybe_single().execute()
         print("Credits:", credits)
-        if not credits.data:            
+        if not credits or not credits.data:
           print(f"No credits yet for {user_id if credentials else 'anonymous user'}. Creating...")
           if is_guest: # if the guest is not in the credits table, create it with the max credit amount
             init_guest_data = {

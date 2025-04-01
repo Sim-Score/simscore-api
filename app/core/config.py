@@ -26,7 +26,9 @@ class Settings(BaseSettings):
     
     # Supabase postgres db settings
     DATABASE_URL: str
-    DATABASE_KEY: str
+    DATABASE_KEY: str = ""
+    DATABASE_ANON_KEY: str = ""
+    DATABASE_SERVICE_ROLE_KEY: str = ""
     
     OPERATION_COSTS: Dict[str, OperationCost] = {
         "basic_analysis": {
