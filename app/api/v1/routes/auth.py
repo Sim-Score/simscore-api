@@ -100,15 +100,12 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
         HTTPException: 400 if creation fails, 401 if authentication fails
     """
     try:
-        print("\nCreate API key endpoint hit!")  # See if we reach this endpoint
         print(f"Creating API key for {credentials.email}")
-        print("\nCreating API key...")
-        print(f"Test environment: {settings.ENVIRONMENT == 'TEST'}; SKIP EMAIL VERIFICATION: {settings.SKIP_EMAIL_VERIFICATION}")
-        log = f"Authenticating user {credentials.email} with password {credentials.password}"
+        if settings.ENVIRONMENT == 'TEST':
+          print(f"Test environment: {settings.ENVIRONMENT == 'TEST'}; SKIP EMAIL VERIFICATION: {settings.SKIP_EMAIL_VERIFICATION}")
+        log = f"Authenticating user {credentials.email} with password ***"
         user = await backend.authenticate_user(credentials.email, credentials.password)
         log = f"User authenticated: {user}"
-        print(f"User authenticated: {user}")
-        print(f"User metadata: {user.user_metadata}")
         
         # Skip verification check in test environment
         if not (settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION):

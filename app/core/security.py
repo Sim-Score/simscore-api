@@ -121,7 +121,12 @@ async def list_api_keys(user):
   return api_keys
 
 async def verify_token(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> dict:
-    """Verify JWT token and return user info with credits"""          
+    """Verify JWT token and return user info with credits"""
+    
+    # Whatever the logic flow, first we need to make sure that there isn't a different user still authorized:
+    db.auth.sign_out()
+    
+    # Now we can do the rest of the logic. run test routines first, then check guest or proper user.           
     try:
         # Skip email verification in test environment
         if settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION:
