@@ -48,17 +48,18 @@ class Settings(BaseSettings):
         }
     }
     
-    GUEST_DAILY_CREDITS: int
-    GUEST_MAX_CREDITS: int
-    USER_DAILY_CREDITS: int
-    USER_MAX_CREDITS: int
+    GUEST_DAILY_CREDITS: int = 10
+    GUEST_MAX_CREDITS: int = 100
+    USER_DAILY_CREDITS: int = 100
+    USER_MAX_CREDITS: int = 1000
     
     # Environment
     ENVIRONMENT: str = "DEV"
     
     # Test Configuration
     SKIP_EMAIL_VERIFICATION: bool = False
-    
+    # Used in supabase config.toml for testing
+    REQUIRE_EMAIL_VERIFICATION: bool = False
     TEST_API_TOKEN: str = os.getenv("TEST_API_TOKEN", "test-api-token-for-unit-tests")
     
     model_config = SettingsConfigDict(env_file=".env")

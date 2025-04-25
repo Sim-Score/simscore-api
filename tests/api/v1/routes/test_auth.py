@@ -743,9 +743,9 @@ def test_get_credits_guest_user(mock_auth_flow, mock_db_query):
     
     # Patch the verify_token function to return a guest user
     with patch('app.core.security.verify_token', return_value=mock_user):
-        response = client.get("/auth/credits", headers={'Authorization': 'Bearer guest_token'})
+        response = client.get("/auth/credits")
         assert response.status_code == 200
-        assert response.json()["credits"] == settings.USER_MAX_CREDITS
+        assert response.json()["credits"] == settings.GUEST_MAX_CREDITS
 
 def test_get_credits_rate_limit():
     """Test rate limiting for credits endpoint"""

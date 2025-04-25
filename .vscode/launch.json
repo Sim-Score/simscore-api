@@ -10,10 +10,17 @@
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "app:app",
-        "--reload"
+        "main:app",
+        "--reload",
+        "--host", "0.0.0.0",
+        "--port", "8000"
       ],
-      "jinja": true
+      "jinja": true,
+      "env": {
+        "ENVIRONMENT": "DEV",
+        "SKIP_EMAIL_VERIFICATION": "true",
+      },
+      "justMyCode": true  // Set to true if you only want to debug your code, not libraries
     }
   ]
 }

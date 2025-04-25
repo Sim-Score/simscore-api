@@ -51,10 +51,11 @@ async def signup(request: Request, credentials: UserCredentials) -> SignupRespon
         HTTPException: 400 if registration fails
     """
     try:
+        print(f"Signing up user: {credentials.email}")
         await backend.create_user(credentials.email, credentials.password)
         return SignupResponse(
             message="Registration successful. Please check your email to verify your account.",
-            email=credentials.email
+            email=credentials.email,
         )
     except Exception as e:
         print("Failed: ", str(e))
@@ -128,6 +129,7 @@ async def create_api_key(credentials: UserCredentials) -> ApiKeyResponse:
         return ApiKeyResponse(api_key=api_key)
     except Exception as e:
         print(f"API key creation error: {str(e)}")
+        print(f"last log line: {log}")
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=400, detail=log)
@@ -201,6 +203,40 @@ async def get_credits(current_user: dict = Depends(backend.verify_token)) -> Cre
         credits = current_user["balance"]
         return CreditsResponse(credits=credits)
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/auth/remove_user", response_model=MessageResponse)
+async def remove_user(credentials: UserCredentials) -> MessageResponse:
+    """
+    Remove a user account and all associated data.
+    
+    Args:
+        credentials: User email and password
+        
+    Returns:
+        Confirmation message
+        
+    Raises:
+        HTTPException: 400 if removal fails, 401 if authentication fails
+    """
+    try:
+        print(f"Authenticating user for removal: {credentials.email}")
+        # First authenticate the user to ensure they have permission to delete
+        user = await backend.authenticate_user(credentials.email, credentials.password)
+        
+        # Get user ID for deletion operations
+        user_id = user.id
+        
+        print(f"Deleting user account: {user_id}")
+        # Delete the user from Supabase auth - cascading constraints will handle related data
+        await backend.delete_user(user_id)
+        
+        return MessageResponse(message="User account and all associated data successfully removed")
+    except Exception as e:
+        print(f"User removal error: {str(e)}")
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=400, detail=str(e))

@@ -23,9 +23,9 @@ async def authenticate_user(email: str, password: str):
       session = db.auth.sign_in_with_password({
         "email": email,
         "password": password
-      })  
+      })
     except Exception as e:
-      raise HTTPException(status_code=401, detail="This user or password does not exist.")
+      raise HTTPException(status_code=401, detail=f"This user or password does not exist. {str(e)}")
     
     print("Auth'ed")
     user = session.user
@@ -130,14 +130,9 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
     try:
         # Skip email verification in test environment
         if settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION:
-            print("Test environment detected - skipping email verification")
+            print("Test environment detected - skipping email verification and checking database for user details")
             is_guest = not credentials
-            if is_guest:
-                return generate_guest_id(request)
-                
-            # Fix: When in test environment, we need to use a safe way to get user_id
-            # If we have credentials, try to decode them, otherwise use a test value
-            user_id = "test_user"
+            user_id = f"test_user{'_guest' if is_guest else ''}"
             if credentials:
                 try:
                     decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
@@ -147,9 +142,9 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
                 
             return {
                 "user_id": user_id,
-                "is_guest": False,
+                "is_guest": is_guest,
                 "email_verified": True,  # Always verified in tests
-                "balance": settings.USER_MAX_CREDITS
+                "balance": settings.GUEST_MAX_CREDITS if is_guest else settings.USER_MAX_CREDITS
             }
             
         # Regular verification logic...
@@ -233,3 +228,22 @@ def generate_guest_id(request: Request) -> dict:
     # Hash the IP to get 32 hex chars
     hex_hash = hashlib.sha256(ip.encode()).hexdigest()[:32]
     return {"id": f"{UUID(hex_hash)}"}
+
+async def delete_user(user_id: str):
+    """Delete a user from Supabase auth system
+    
+    Args:
+        user_id: The ID of the user to delete
+        
+    Raises:
+        HTTPException: If deletion fails
+    """
+    try:
+        # Use the Supabase admin auth client to delete the user
+        db.auth.sign_out()
+        db.auth.admin.delete_user(user_id)
+        print(f"User {user_id} successfully deleted")
+    except Exception as e:
+        print(f"Error deleting user {user_id}: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Failed to delete user: {str(e)}")

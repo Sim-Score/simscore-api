@@ -56,7 +56,7 @@ def auth_app():
     @app.get("/auth/credits")
     @limiter.limit("10/minute")
     async def get_credits(request: Request):
-        return {"credits": 1000}
+        return {"credits": 100}
     
     return TestClient(app)
 

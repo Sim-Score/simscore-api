@@ -21,6 +21,13 @@ def pytest_configure(config):
     config.inicfg['asyncio_mode'] = 'auto'
     config.inicfg['asyncio_default_fixture_loop_scope'] = 'function'
 
+# Always use 'TEST' environment when running tests!
+@pytest.fixture(autouse=True)
+def test_settings(monkeypatch):
+    """Override settings for all tests"""
+    monkeypatch.setattr("app.core.config.settings.ENVIRONMENT", "TEST")
+    yield
+
 @pytest.fixture
 def mock_user_info():
     return {"user_id": "test_user"}
@@ -158,18 +165,26 @@ def _generate_realistic_similarity_matrix(size: int) -> List[List[float]]:
 
 @pytest.fixture
 def test_user():
-    """Generate unique test user credentials"""
-    timestamp = int(datetime.now(UTC).timestamp())
-    return {
-        "email": f"test_{timestamp}@example.com",
-        "password": "SecureTestPass123!"
-    }
+    """Generate unique test user credentials with optional identifier"""
+    def _create_user(identifier=None):
+        timestamp = int(datetime.now(UTC).timestamp())
+        email_prefix = "test_"
+        
+        if identifier:
+            email_prefix = f"{email_prefix}{identifier}_"
+        
+        return {
+            "email": f"{email_prefix}{timestamp}@example.com",
+            "password": "SecureTestPass123!"
+        }
+    return _create_user
+
 
 @pytest.fixture
 def client():
     """Create a test client that connects to the running server"""
     import httpx
-    with httpx.Client(base_url="http://localhost:8000", timeout=30.0) as client:
+    with httpx.Client(base_url="http://localhost:8000", timeout=50.0) as client:
         yield client
 
 @pytest.fixture

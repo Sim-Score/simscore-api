@@ -8,3 +8,6 @@ helpers/.nltk_resources_cache
 .vscode/settings.json
 .python-version
 app/services/.nltk_resources_cache
+.cursor
+api_key.py
+supabase/*.sql
