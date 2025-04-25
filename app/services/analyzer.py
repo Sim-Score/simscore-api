@@ -15,7 +15,9 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 import nltk
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
+from nltk.tokenize import word_tokenize, sent_tokenize
+
+
 from nltk.stem import WordNetLemmatizer
 from typing import List
 from .types import CentroidAnalysisResult, PlotData, Results
@@ -296,4 +298,34 @@ class Analyzer:
         cluster_results = self.perform_kmeans_analysis()
         kmeans_data = self.get_kmeans_data(cluster_results)
         return coords, marker_sizes, kmeans_data
+
+    @staticmethod
+    def check_ideas_are_sentences(ideas: List[str], required_percentage: int = 80):
+        """
+        Checks if at least the required percentage of ideas contain ... somewhat complete sentences. 
+        Or at least 3-word-headers. 
+        
+        Args:
+            ideas: List of idea strings to check
+            required_percentage: Minimum percentage of ideas that should be sentences
+        
+        Returns:
+            tuple: (is_valid, message) where is_valid is a boolean,
+                   message is an error message if not valid
+        """
+        sentence_count = 0
+        for idea in ideas:
+            sentences = sent_tokenize(idea)
+            # very lenient requirements, a 'sentence' with at least 2 words. Done to enable lists with short 3-word 'headers' or similar.
+            if sentences and any(len(s.split()) > 2 for s in sentences):  
+                sentence_count += 1
+        
+        sentence_percentage = (sentence_count / len(ideas)) * 100 if ideas else 0
+        
+        if sentence_percentage < required_percentage:
+            return (False, 
+                    f"At least {required_percentage}% of ideas should contain complete sentences. "
+                    f"Currently only {sentence_percentage:.1f}% do. Please provide more detailed ideas.")
+        
+        return (True, "")
         

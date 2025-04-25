@@ -64,10 +64,10 @@ def valid_token():
 @pytest.fixture
 def mock_ideas():
     return [
-        {"id": "1", "idea": "First idea"},
-        {"id": "2", "idea": "Second idea"},
-        {"id": "3", "idea": "Other ideas"},
-        {"id": "4", "idea": "Many ideas"}
+        {"id": "1", "idea": "This is my first idea"},
+        {"id": "2", "idea": "And I have a Second idea as well"},
+        {"id": "3", "idea": "Let's add Other ideas"},
+        {"id": "4", "idea": "These are Many ideas"}
     ]
         
 @pytest.fixture(autouse=True)
@@ -108,7 +108,7 @@ async def test_rank_ideas_success(override_dependencies, mock_ideas, auth_header
         
         # Set up mock return for centroid_analysis
         mock_results = {
-            "ideas": ["First idea", "Second idea", "Other ideas", "Many ideas"],
+            "ideas": ["This is my first idea", "And I have a Second idea as well", "Let's add Other ideas", "These are Many ideas"],
             "similarity": [0.9, 0.8, 0.7, 0.6]
         }
         mock_plot_data = {
@@ -125,7 +125,7 @@ async def test_rank_ideas_success(override_dependencies, mock_ideas, auth_header
             headers=auth_headers
         )
         
-        assert response.status_code == 200
+        assert response.status_code == 200, response.content
         data = response.json()
         assert "ranked_ideas" in data
         assert len(data["ranked_ideas"]) == len(mock_ideas)
@@ -361,7 +361,7 @@ async def test_insufficient_credits(override_dependencies, auth_headers):
          patch('app.services.credits.CreditService.has_sufficient_credits', return_value=False), \
          patch('app.services.credits.CreditService.get_credits', return_value=5):
         
-        ideas = [{"id": str(i), "idea": f"idea{i}"} for i in range(4)]
+        ideas = [{"id": str(i), "idea": f"This is a good idea {i}"} for i in range(4)]
         response = client.post(
             ENDPOINT,
             json={
@@ -713,7 +713,7 @@ async def test_rank_ideas_insufficient_credits(test_client, override_dependencie
 @pytest.mark.asyncio
 async def test_rank_ideas_with_empty_ideas_ignores_empty(test_client, override_dependencies, auth_headers):
     """Test error when some ideas are empty"""
-    ideas = [{"id": str(i), "idea": f"Test idea {i}"} for i in range(10)]
+    ideas = [{"id": str(i), "idea": f"Testing idea {i}"} for i in range(10)]
     ideas.append({"id": "11", "idea": "", "author": "Test Author"})  # Empty idea, and for extra spice add an author
     ideas.append({"id": "", "idea": "Some idea with empty ID", "author": "Test Author"}) # just for good measure
     
@@ -732,6 +732,27 @@ async def test_rank_ideas_with_empty_ideas_ignores_empty(test_client, override_d
         response = test_client.post(ENDPOINT, json=request_data, headers=auth_headers)
         
         assert response.status_code == 200
+
+@pytest.mark.asyncio
+async def test_rank_ideas_with_numbers_as_ideas(test_client, override_dependencies, auth_headers):
+    """Test error when some ideas don't make sense"""
+    ideas = [{"id": f"Whatever {i}", "idea": i} for i in range(10)]
+    
+    request_data = {
+        "ideas": ideas,
+        "advanced_features": {
+            "relationship_graph": True,
+            "pairwise_similarity_matrix": True,
+            "cluster_names": True
+        }
+    }
+    
+    with patch('app.services.credits.CreditService.has_sufficient_credits', return_value=True), \
+         patch('app.services.credits.CreditService.deduct_credits', return_value=None):
+    
+        response = test_client.post(ENDPOINT, json=request_data, headers=auth_headers)
+        
+        assert response.status_code == 400, response.content
 
 
 @pytest.mark.asyncio

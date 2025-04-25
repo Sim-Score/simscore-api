@@ -9,6 +9,7 @@ from app.services.credits import CreditService
 from ..dependencies.auth import verify_token
 
 from ....services.analyzer import centroid_analysis
+from ....services.analyzer import Analyzer
 from ..models.request import IdeaInput, IdeaRequest
 from ..models.response import AnalysisResponse, RelationshipGraph
 from app.services.types import PlotData, Results, RankedIdea
@@ -65,6 +66,11 @@ async def rank_ideas(
 
     if total_bytes > 10_000_000:
         return Response(status_code=400, content='Please provide less than 10MB of data to analyze')
+
+    is_valid, message = Analyzer.check_ideas_are_sentences(ideas, 80)
+    if not is_valid:
+        return Response(status_code=400, content=message)
+
 
     # Check credits for basic analysis
     user_id = user_info["user_id"]
