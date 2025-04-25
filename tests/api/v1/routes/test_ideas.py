@@ -45,7 +45,9 @@ def override_dependencies():
         return {
             "user_id": str(uuid.uuid4()),
             "email": "test@example.com", 
-            "email_verified": True
+            "email_verified": True,
+            "is_guest": False,
+            "balance": settings.USER_MAX_CREDITS            
         }
     
     app.dependency_overrides[verify_token] = mock_verify_token
@@ -95,6 +97,7 @@ async def test_request_invalid_idea(override_dependencies, auth_headers):
         headers=auth_headers
     )
     assert response.status_code == 422
+    assert "Field required" in str(response.content)
 
 @pytest.mark.asyncio
 async def test_rank_ideas_success(override_dependencies, mock_ideas, auth_headers):
@@ -705,6 +708,30 @@ async def test_rank_ideas_insufficient_credits(test_client, override_dependencie
         
         assert response.status_code == 402
         assert "Insufficient credits" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_rank_ideas_with_empty_ideas_ignores_empty(test_client, override_dependencies, auth_headers):
+    """Test error when some ideas are empty"""
+    ideas = [{"id": str(i), "idea": f"Test idea {i}"} for i in range(10)]
+    ideas.append({"id": "11", "idea": "", "author": "Test Author"})  # Empty idea, and for extra spice add an author
+    ideas.append({"id": "", "idea": "Some idea with empty ID", "author": "Test Author"}) # just for good measure
+    
+    request_data = {
+        "ideas": ideas,
+        "advanced_features": {
+            "relationship_graph": True,
+            "pairwise_similarity_matrix": True,
+            "cluster_names": True
+        }
+    }
+    
+    with patch('app.services.credits.CreditService.has_sufficient_credits', return_value=True), \
+         patch('app.services.credits.CreditService.deduct_credits', return_value=None):
+    
+        response = test_client.post(ENDPOINT, json=request_data, headers=auth_headers)
+        
+        assert response.status_code == 200
 
 
 @pytest.mark.asyncio

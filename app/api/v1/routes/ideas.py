@@ -49,9 +49,13 @@ async def rank_ideas(
     """
     print('Ranking ideas')
     
-    ideas = [item.idea for item in ideaRequest.ideas]
+    # Filter out empty ideas from the original request
+    filtered_idea_inputs = [item for item in ideaRequest.ideas if item.idea.strip()]
+        
+    # Extract ideas from filtered inputs
+    ideas = [item.idea for item in filtered_idea_inputs]
     num_ideas = len(ideas)
-    total_bytes = sum(len(item.idea.encode('utf-8')) for item in ideaRequest.ideas)
+    total_bytes = sum(len(idea.encode('utf-8')) for idea in ideas)
 
     if num_ideas < 4:
         return Response(status_code=400, content='Please provide at least 4 items to analyze')
