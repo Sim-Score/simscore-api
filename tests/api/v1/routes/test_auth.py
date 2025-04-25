@@ -22,6 +22,7 @@ from app.services.credits import CreditService
 import warnings
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import app.core.security as backend
+from typing import Optional
 
 # Add warning filter for the jose library
 warnings.filterwarnings(
@@ -707,29 +708,21 @@ def test_get_credits_success(mock_auth_flow, mock_db_query, auth_header):
 
 def test_get_credits_unauthorized():
     """Test credits retrieval without auth"""
-    with patch('app.core.security.verify_token') as mock_verify, \
-         patch('app.core.security.generate_guest_id') as mock_guest, \
-         patch('app.core.security.db') as mock_db:
-        
-        # Make verify_token raise unauthorized
-        mock_verify.side_effect = HTTPException(
-            status_code=401,
-            detail="Unauthorized"
-        )
-        
-        # Prevent guest user creation
-        mock_guest.side_effect = HTTPException(
-            status_code=401,
-            detail="Unauthorized"
-        )
-        
-        # Mock db to prevent connection errors
-        mock_db.table.return_value = MagicMock()
-        
+    # Create a function with the same signature asverify_token
+    async def mock_verify_token(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = None):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    # Use dependency_overrides to replace the verify_token dependency
+    app.dependency_overrides[backend.verify_token] = mock_verify_token
+    
+    try:
         response = client.get("/auth/credits")
         
         assert response.status_code == 401
         assert "unauthorized" in response.json()["detail"].lower()
+    finally:
+        # Clean up the override after the test
+        app.dependency_overrides.pop(backend.verify_token, None)
 
 def test_get_credits_guest_user(mock_auth_flow, mock_db_query):
     """Test credits retrieval for guest user"""

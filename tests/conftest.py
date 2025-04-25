@@ -181,11 +181,13 @@ def test_user():
 
 
 @pytest.fixture
-def client():
+def locally_running_client():
     """Create a test client that connects to the running server"""
     import httpx
     with httpx.Client(base_url="http://localhost:8000", timeout=50.0) as client:
         yield client
+
+
 
 @pytest.fixture
 def auth_headers(test_user):

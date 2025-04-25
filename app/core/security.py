@@ -128,26 +128,6 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
     
     # Now we can do the rest of the logic. run test routines first, then check guest or proper user.           
     try:
-        # Skip email verification in test environment
-        if settings.ENVIRONMENT == "TEST" and settings.SKIP_EMAIL_VERIFICATION:
-            print("Test environment detected - skipping email verification and checking database for user details")
-            is_guest = not credentials
-            user_id = f"test_user{'_guest' if is_guest else ''}"
-            if credentials:
-                try:
-                    decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
-                    user_id = decoded.get("user_id", "test_user")
-                except:
-                    pass
-                
-            return {
-                "user_id": user_id,
-                "is_guest": is_guest,
-                "email_verified": True,  # Always verified in tests
-                "balance": settings.GUEST_MAX_CREDITS if is_guest else settings.USER_MAX_CREDITS
-            }
-            
-        # Regular verification logic...
         is_guest = not credentials
         if is_guest:
           print("No credentials supplied, continuing as guest...")
@@ -155,7 +135,11 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
           user["email_verified"] = True
         else:
           print("Credentials supplied, decoding token...")
-          decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
+          try:
+            decoded = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=["HS256"])
+          except jwt.JWTError as e:
+            print("JWT decoding error:", str(e))
+            raise HTTPException(status_code=401, detail="Your API key is invalid. Please make sure you have set the API key correctly.")
           # Check if token is API key
           if decoded.get("token_type") == "api_key":
               print("Got API key, verifying...")

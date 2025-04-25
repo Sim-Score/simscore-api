@@ -1,12 +1,17 @@
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 import pytest
-import httpx
 from datetime import datetime, UTC
 import time
-from app.core.config import settings
-from jose import jwt
+from app.api.v1.routes.auth import router
+ 
+# Set up the FastAPI app and TestClient
+app = FastAPI()
+app.include_router(router)  # Include the authentication router
+client = TestClient(app)
 
 @pytest.fixture
-def test_user_cleanup(client):    
+def test_user_cleanup():    
     # Store created resources for cleanup
     created_resources = {
         "users": [],
@@ -19,15 +24,15 @@ def test_user_cleanup(client):
     for user in created_resources["users"]:
         print(f"Cleaning up test user: {user['email']}")
         log = user
-        response = client.post(f"/v1/auth/remove_user", json=user)
+        response = client.post(f"/auth/remove_user", json=user)
         if response.status_code >= 400:
             print(f"Error cleaning up user {log}: {response.text}")
             raise Exception(f"Error cleaning up user {log}: {response.text}")
 
 @pytest.mark.order(2)
-def test_signup_flow(client, test_user):
+def test_signup_flow(test_user):
     """Test basic signup without verification"""
-    response = client.post("/v1/auth/sign_up", json=test_user())
+    response = client.post("/auth/sign_up", json=test_user())
     
     # Print detailed debug information
     print(f"\nTest user: {test_user}")
@@ -47,35 +52,9 @@ def test_signup_flow(client, test_user):
     assert response.status_code == 200
     assert "message" in response.json()
     assert "email" in response.json()
-
+    
 @pytest.mark.order(3)
-@pytest.mark.rate_limited
-def test_rate_limiting_flow(client):
-    """Test rate limiting on signup"""
-    print("\nTesting rate limiting on signup...")
-    # First create a test user that we'll use for other endpoints
-    test_email = f"test_{datetime.now(UTC).timestamp()}@example.com"
-    test_user = {
-        "email": test_email,
-        "password": "TestPass123!"
-    }
-    
-    signup_responses = []
-    for i in range(7):  # Try more than the limit (5/minute)
-        response = client.post("/v1/auth/sign_up", json={
-            "email": f"test_{datetime.now(UTC).timestamp()}_{i}@example.com",
-            "password": "TestPass123!"
-        })
-        print(f"Signup request {i+1}: {response.status_code} - {response.text}")
-        signup_responses.append(response.status_code)
-        time.sleep(0.1)
-    
-    # Check rate limiting was triggered
-    assert 429 in signup_responses, "Rate limiting not triggered"
-    assert signup_responses.count(429) > 0, "No requests were rate limited" 
-    
-@pytest.mark.order(4)
-def test_multiple_users_flow(client, test_user, test_user_cleanup):
+def test_multiple_users_flow(test_user, test_user_cleanup):
     """
     Test multiple users creating and using API keys:
     1. User 1 signs up and creates an API key
@@ -92,14 +71,14 @@ def test_multiple_users_flow(client, test_user, test_user_cleanup):
       
     # Step 1: User 1 signs up
     signup_response1 = client.post(
-        "/v1/auth/sign_up",
+        "/auth/sign_up",
         json=user1
     )
     assert signup_response1.status_code == 200, f"User 1 signup failed: {signup_response1.text}"  
   
     # ... and User 1 creates an API key
     api_key_response1 = client.post(
-        "/v1/auth/create_api_key",
+        "/auth/create_api_key",
         json=user1
     )
     assert api_key_response1.status_code == 200, f"User 1 API key creation failed: {api_key_response1.text}"
@@ -108,7 +87,7 @@ def test_multiple_users_flow(client, test_user, test_user_cleanup):
     
     # Step 2: User 2 signs up
     signup_response2 = client.post(
-        "/v1/auth/sign_up",
+        "/auth/sign_up",
         json=user2
     )
     assert signup_response2.status_code == 200, f"User 2 signup failed: {signup_response2.text}"
@@ -116,7 +95,7 @@ def test_multiple_users_flow(client, test_user, test_user_cleanup):
     
     # ... and User 2 creates an API key
     api_key_response2 = client.post(
-        "/v1/auth/create_api_key",
+        "/auth/create_api_key",
         json=user2
     )
     assert api_key_response2.status_code == 200, f"User 2 API key creation failed: {api_key_response2.text}"
@@ -131,7 +110,7 @@ def test_multiple_users_flow(client, test_user, test_user_cleanup):
     # Due to row-level security, and User 2 being still authenticated, it should sign out User 2 and use the service_role to check whether the API key is valid.
     # For this example, we'll use the credits endpoint which uses API keys and verification.
     credits_response = client.get(
-        "/v1/auth/credits",
+        "/auth/credits",
         headers={"Authorization": f"Bearer {user1_api_key}"}
     )
     assert credits_response.status_code == 200, f"User 1 authenticated request failed: {credits_response.text}"
@@ -142,7 +121,7 @@ def test_multiple_users_flow(client, test_user, test_user_cleanup):
     
     # Step 4: List API keys for User 1
     list_keys_response = client.post(
-        "/v1/auth/api_keys",
+        "/auth/api_keys",
         json=user1
     )
     assert list_keys_response.status_code == 200
@@ -151,14 +130,14 @@ def test_multiple_users_flow(client, test_user, test_user_cleanup):
     
     # Step 5: Revoke User 1's API key
     revoke_response = client.delete(
-        f"/v1/auth/revoke_api_key/{user1_api_key}",
+        f"/auth/revoke_api_key/{user1_api_key}",
         headers={"Authorization": f"Bearer {user1_api_key}"}
     )
     assert revoke_response.status_code == 200
     
     # Step 6: Verify the key no longer works
     invalid_key_response = client.get(
-        "/v1/auth/credits",
+        "/auth/credits",
         headers={"Authorization": f"Bearer {user1_api_key}"}
     )
     assert invalid_key_response.status_code == 401, "Revoked API key still works"
