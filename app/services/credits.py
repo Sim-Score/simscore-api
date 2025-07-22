@@ -26,12 +26,16 @@ class CreditService:
     @staticmethod
     async def get_credits(user_id: str) -> int:
         """Get available credits for user"""
+        if settings.is_in_trial_mode:
+            return 1000
         credits = db.table('credits').select('balance').eq('user_id', user_id).single().execute()
         return int(credits.data['balance']) if credits.data else 0
 
     @staticmethod 
     async def deduct_credits(user_id: str, operation: str, data_size: int, bytes: int) -> bool:
         """Deduct credits after successful operation"""
+        if settings.is_in_trial_mode:
+            return True
         cost = await CreditService.get_operation_cost(operation, data_size, bytes)
         print(f"Deducting {cost} credits from {user_id} for {operation} with {data_size} statements and a total of {bytes} bytes")
         result = db.rpc(

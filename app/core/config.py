@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     USER_DAILY_CREDITS: int = 100
     USER_MAX_CREDITS: int = 1000
     
+    is_in_trial_mode: bool = True
+    
     # Environment
     ENVIRONMENT: str = "DEV"
     

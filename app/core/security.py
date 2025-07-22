@@ -125,6 +125,12 @@ async def verify_token(request: Request, credentials: Optional[HTTPAuthorization
     
     # Whatever the logic flow, first we need to make sure that there isn't a different user still authorized:
     db.auth.sign_out()
+    if settings.is_in_trial_mode:
+        return {
+              "user_id": f"trial_mode_{datetime.now()}", 
+              "is_guest": True, 
+              "balance": 1000
+            }
     
     # Now we can do the rest of the logic. run test routines first, then check guest or proper user.           
     try:

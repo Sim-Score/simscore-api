@@ -25,7 +25,7 @@ async def rank_ideas(
     request: Request,
     ideaRequest: IdeaRequest,
     user_info: dict = Depends(verify_token),
-) -> AnalysisResponse:
+) -> AnalysisResponse | Response:
     """
     Analyze and rank ideas based on semantic similarity.
     
@@ -186,17 +186,17 @@ async def process_advanced_features(
     total_bytes: int
 ) -> dict:
     """Process and add advanced features if credits are available"""
-    if request.advanced_features.relationship_graph:
+    if request.advanced_features and request.advanced_features.relationship_graph:
         response["relationship_graph"] = build_relationship_graph(
             response["ranked_ideas"], plot_data
         )
         await CreditService.deduct_credits(user_id, "relationship_graph", num_ideas, total_bytes)
     
-    if request.advanced_features.cluster_names:
+    if request.advanced_features and request.advanced_features.cluster_names:
         response["cluster_names"] = await summarize_clusters(response["ranked_ideas"])
         await CreditService.deduct_credits(user_id, "cluster_names", num_ideas, total_bytes)
            
-    if request.advanced_features.pairwise_similarity_matrix:
+    if request.advanced_features and request.advanced_features.pairwise_similarity_matrix:
         response["pairwise_similarity_matrix"] = plot_data["pairwise_similarity"]
         
     return response
